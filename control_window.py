@@ -56,9 +56,9 @@ class ControlWindow:
         # Buttons for running, stopping, and resuming simulations
         self.run_button = tk.Button(self.panel, text="Run", command=self.run_simulation)
         self.run_button.grid(row=len(params), column=0)
-        self.stop_button_acc = tk.Button(self.panel, text="Stop ACC", command=lambda: self.stop_simulation('ACC'))
+        self.stop_button_acc = tk.Button(self.panel, text="Stop Ego", command=lambda: self.stop_simulation())
         self.stop_button_acc.grid(row=len(params), column=1)
-        self.resume_button_acc = tk.Button(self.panel, text="Resume ACC", command=lambda: self.resume_simulation('ACC'))
+        self.resume_button_acc = tk.Button(self.panel, text="Resume Ego", command=lambda: self.resume_simulation())
         self.resume_button_acc.grid(row=len(params), column=2)
         # self.stop_button_bcc = tk.Button(self.panel, text="Stop BCC", command=lambda: self.stop_simulation('BCC'))
         # self.stop_button_bcc.grid(row=len(params)+1, column=1)
@@ -67,6 +67,7 @@ class ControlWindow:
 
         # Create a City instance for ACC 
         self.city_acc = City()
+        self.city_bcc = City()
 
         # Visualization for ACC (top)
         self.painter_acc = TransportationPainter(master, self.city_acc.roads, self.city_acc.cars, width=1500, height=300, bg='white')
@@ -74,16 +75,16 @@ class ControlWindow:
         tk.Label(master, text="ACC").pack()
 
         # # Visualization for BCC (bottom)
-        # self.painter_bcc = TransportationPainter(master, self.city_bcc.roads, self.city_bcc.cars, width=1500, height=300, bg='white')
-        # self.painter_bcc.pack()
-        # tk.Label(master, text="BCC").pack()
+        self.painter_bcc = TransportationPainter(master, self.city_bcc.roads, self.city_bcc.cars, width=1500, height=300, bg='white')
+        self.painter_bcc.pack()
+        tk.Label(master, text="BCC").pack()
         
         # Timer for simulation updates
         self.timer = None
 
         # Flags to control leader stop for ACC and BCC
         self.leader_stop_acc = False
-        # self.leader_stop_bcc = False
+        self.leader_stop_bcc = False
 
     def run_simulation(self):
         # Get parameter values from entry fields
@@ -99,19 +100,19 @@ class ControlWindow:
     
         
         self.city_acc = City()
-        # self.city_bcc = City()
+        self.city_bcc = City()
 
         # Initialize cities with parameters for ACC and BCC models
         self.city_acc.init(*args, model='ACC')
-        # self.city_bcc.init(*args, model='BCC')
+        self.city_bcc.init(*args, model='BCC')
 
         # Update painters with new city elements
         self.painter_acc.set_elements(self.city_acc.roads, self.city_acc.cars)
-        # self.painter_bcc.set_elements(self.city_bcc.roads, self.city_bcc.cars)
+        self.painter_bcc.set_elements(self.city_bcc.roads, self.city_bcc.cars)
 
         # Reset leader stop flags
         self.leader_stop_acc = False
-        # self.leader_stop_bcc = False
+        self.leader_stop_bcc = False
 
         # Start simulation timer
         self.start_timer()
@@ -125,36 +126,30 @@ class ControlWindow:
     def update_simulation(self):
         # Set leader stop flags for both cities
         self.city_acc.set_leader_stop(self.leader_stop_acc)
-        # self.city_bcc.set_leader_stop(self.leader_stop_bcc)
+        self.city_bcc.set_leader_stop(self.leader_stop_bcc)
 
         # Run simulation step for both cities
         self.city_acc.run()
-        # self.city_bcc.run()
+        self.city_bcc.run()
 
         # Update painters with new city elements
         self.painter_acc.set_elements(self.city_acc.roads, self.city_acc.cars)
-        # self.painter_bcc.set_elements(self.city_bcc.roads, self.city_bcc.cars)
+        self.painter_bcc.set_elements(self.city_bcc.roads, self.city_bcc.cars)
 
         # Redraw the visualizations
         self.painter_acc.repaint()
-        # self.painter_bcc.repaint()
+        self.painter_bcc.repaint()
 
         # Schedule next update
         self.timer = self.master.after(50, self.update_simulation)
 
-    def stop_simulation(self, which):
-        # Set leader stop flag for the selected model
-        if which == 'ACC':
-            self.leader_stop_acc = True
-        # elif which == 'BCC':
-            # self.leader_stop_bcc = True
+    def stop_simulation(self):
+        self.leader_stop_acc = True
+        self.leader_stop_bcc = True
 
-    def resume_simulation(self, which):
-        # Clear leader stop flag for the selected model
-        if which == 'ACC':
-            self.leader_stop_acc = False
-        # elif which == 'BCC':
-            # self.leader_stop_bcc = False
+    def resume_simulation(self):
+        self.leader_stop_acc = False
+        self.leader_stop_bcc = False
 
 if __name__ == "__main__":
     # Create main window and start the application
