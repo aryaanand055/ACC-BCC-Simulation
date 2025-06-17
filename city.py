@@ -5,11 +5,11 @@ class City:
     def __init__(self):
         self.cars = []
         self.roads = []
-        self.ttc_inverse = 0
         self.step_count = 0
         self.model = 'ACC'  
+        self.min_gap = 5.0  # Default value
 
-    def init(self, car_number, kd, kv, kc, v_des, max_v, min_v, min_dis,reaction_time, max_a, min_a, ttc_inverse, model='ACC'):
+    def init(self, car_number, kd, kv, kc, v_des, max_v, min_v, min_dis, reaction_time, max_a, min_a, min_gap=5.0, model='ACC'):
         # Reset simulation state
         self.cars.clear()
         self.roads.clear()
@@ -19,8 +19,8 @@ class City:
         # Create a single straight road for simplicity
         road = Road(None, None, None, None, 1000, 0, 0, 1, 0)
         self.roads.append(road)
-        # Place cars at intervals along the road
 
+        # Place cars at intervals along the road
         for i in range(int(car_number)):
             initial_car_spacing = 50  # Initial spacing between cars
             pos = i * initial_car_spacing + 10  # Space cars 50 units apart
@@ -28,6 +28,8 @@ class City:
             color = 'red' if i == 0 else 'blue'  # First car is red (ego), others blue
             car_length = 5  # If the car is a point object, its length is 0
             car = Car(length=car_length, color=color, pos=pos,min_dis=min_dis, velocity=velocity, acceleration=0, current_road=road)
+            car.original_color = color  # Store original color
+            car.collision_timer = 0     # Timer for collision color
             self.cars.append(car)
             road.enter_road(car)
 
@@ -41,7 +43,7 @@ class City:
         self.reaction_time = reaction_time
         self.max_a = max_a
         self.min_a = min_a
-        self.ttc_inverse = ttc_inverse
+        self.min_gap = min_gap
 
     def run(self):
         # Run one simulation step
@@ -73,6 +75,7 @@ class City:
                 continue
 
             # Find the car ahead and behind on the same road (circular road)
+            
             cars_same_road = [c for c in self.cars if c.current_road == car.current_road and c != car]
 
             def gap_to(other):
@@ -86,7 +89,7 @@ class City:
             back_car,front_car = front_car,back_car
 
             if self.model == 'ACC':
-                # Active Cruise Control: only considers the car in front
+                # Active Cruise Control: only consider the car in front
                 if front_car:
                     gap = (car.pos - front_car.pos -  car.length) % road_length
                     rel_v = front_car.velocity - car.velocity
@@ -141,6 +144,12 @@ class City:
             # Clamp velocity to not exceed max_v
             if car.velocity > self.max_v:
                 car.velocity = self.max_v
+            # Fade collision color if timer is active
+            if hasattr(car, 'collision_timer') and car.collision_timer > 0:
+                car.collision_timer -= 1
+                if car.collision_timer == 0:
+                    car.color = car.original_color
+                    
         # Handle any collisions that may have occurred
         self.handle_collisions()
 
@@ -150,13 +159,18 @@ class City:
         sorted_cars = sorted(self.cars, key=lambda c: c.pos)
         for i, car in enumerate(sorted_cars):
             next_car = sorted_cars[(i + 1) % len(sorted_cars)]
+
             # Calculate gap considering circular road
-            
             gap = (next_car.pos - car.pos - car.length) % road_length
-            min_gap = 5.0  # Minimum allowed gap (can be parameterized)
+            min_gap = self.min_gap  # Use instance parameter
             if gap < min_gap:
                 # Prevent overlap: set next_car just behind car, match velocities
                 next_car.pos = (car.pos + car.length + min_gap) % road_length
                 avg_v = (car.velocity + next_car.velocity) / 2
                 car.velocity = avg_v
                 next_car.velocity = avg_v
+                # Change color to indicate collision and start timer
+                car.color = 'orange'
+                next_car.color = 'orange'
+                car.collision_timer = 40  # 40 steps * 0.1s = 4 seconds
+                next_car.collision_timer = 40

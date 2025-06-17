@@ -26,7 +26,8 @@ class ControlWindow:
             "reaction_time": 1.0,
             "max_a": 3.0,
             "min_a": -3.0,
-            "ttc_inverse": 10.0
+            # "ttc_inverse": 10.0,
+            "min_gap": 5.0
         }
         
         params = [
@@ -41,7 +42,7 @@ class ControlWindow:
             ("reaction_time", "Reaction Time"),
             ("max_a", "Max Acceleration"),
             ("min_a", "Min Acceleration"),
-            ("ttc_inverse", "TTC Inverse")
+            ("min_gap", "Minimum Gap Between Cars (min_gap)")
         ]
 
         # Create label and entry for each parameter
@@ -87,7 +88,7 @@ class ControlWindow:
     def run_simulation(self):
         # Get parameter values from entry fields
         args = []
-        for key in ["car_number", "kd", "kv", "kc", "v_des", "max_v", "min_v", "min_dis","reaction_time", "max_a", "min_a", "ttc_inverse"]:
+        for key in ["car_number", "kd", "kv", "kc", "v_des", "max_v", "min_v", "min_dis","reaction_time", "max_a", "min_a", "min_gap"]:
             val = self.entries[key].get()
             try:
                 val = float(val) if '.' in val or 'e' in val.lower() else int(val)
