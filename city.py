@@ -112,7 +112,23 @@ class City:
                     car.acceleration = acc
             elif self.model == 'BCC':
             #    BCC Logic here
-                car.acceleration = 0
+                min_dis = 20
+                desired_gap = min_dis + car.velocity * self.reaction_time
+
+                front_gap = abs((car.pos - front_car.pos - front_car.length) % road_length)
+                back_gap = abs((back_car.pos - car.pos - car.length) % road_length)
+
+                gap_factor = self.kd * (front_gap - desired_gap)+self.kd * (desired_gap - back_gap) 
+                velocity_factor = self.kv * (front_car.velocity -  car.velocity) +self.kv*( -car.velocity + back_car.velocity)
+
+
+                a = velocity_factor + gap_factor
+
+                
+                if(idx == len(self.cars) - 1):
+                    a = self.kd * (front_gap - desired_gap) + self.kv * (front_car.velocity - car.velocity)
+                a = max(self.min_a, min(self.max_a, a))
+                car.acceleration = a
 
        
     def move_forward(self):
