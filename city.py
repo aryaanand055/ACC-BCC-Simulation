@@ -1,3 +1,5 @@
+'''City .py'''
+
 from car import Car
 from road import Road
 
@@ -24,7 +26,8 @@ class City:
         for i in range(int(car_number)):
             initial_car_spacing = 50  # Initial spacing between cars
             pos = i * initial_car_spacing + 10  # Space cars 50 units apart
-            velocity = v_des  # Initial velocity of each car
+            velocity = 0
+             # Initial velocity of each car
             if i == 0:
                 color = 'red'  # First car is red (ego)
             elif i == car_number - 1:
@@ -50,10 +53,10 @@ class City:
         self.min_a = min_a
         self.min_gap = min_gap
 
-    def run(self):
-        # Run one simulation step
+    def run(self, dt=0.1):
+        # Run one simulation step with real dt
         self.driver_decision()
-        self.move_forward()
+        self.move_forward(dt)
         self.step_count += 1
 
     def set_leader_stop(self, leader_stop):
@@ -73,10 +76,21 @@ class City:
                     car.acceleration = 0
                 continue
             if idx == 0:
-                # Ego vehicle: try to reach desired velocity
-                acc = self.kc * (self.v_des - car.velocity)
-                acc = max(self.min_a, min(self.max_a, acc))
-                car.acceleration = acc
+                if self.ego_velocity_profile:
+                    step = self.step_count
+                    dt = 0.1
+                    time = round(step * dt, 3)
+                    # Find the closest matching time point
+                    for t, v in self.ego_velocity_profile:
+                        if abs(t - time) < dt / 2:
+                            car.velocity = v
+                            car.acceleration = 0  # Optional: no acceleration
+                            break
+                else:
+                    # Ego vehicle: try to reach desired velocity
+                    acc = self.kc * (self.v_des - car.velocity)
+                    acc = max(self.min_a, min(self.max_a, acc))
+                    car.acceleration = acc
                 continue
 
             # Find the car ahead and behind on the same road (circular road)
@@ -121,19 +135,15 @@ class City:
                 gap_factor = self.kd * (front_gap - desired_gap)+self.kd * (desired_gap - back_gap) 
                 velocity_factor = self.kv * (front_car.velocity -  car.velocity) +self.kv*( -car.velocity + back_car.velocity)
 
-
                 a = velocity_factor + gap_factor
-
-                
                 if(idx == len(self.cars) - 1):
                     a = self.kd * (front_gap - desired_gap) + self.kv * (front_car.velocity - car.velocity)
                 a = max(self.min_a, min(self.max_a, a))
                 car.acceleration = a
 
        
-    def move_forward(self):
+    def move_forward(self, dt=0.1):
         # Move all cars forward based on their velocity and acceleration
-        dt = 0.1
         for car in self.cars:
             car.update(dt)
             # Clamp velocity to not exceed max_v
@@ -144,7 +154,6 @@ class City:
                 car.collision_timer -= 1
                 if car.collision_timer == 0:
                     car.color = car.original_color
-                    
         # Handle any collisions that may have occurred
         self.handle_collisions()
 
@@ -164,6 +173,7 @@ class City:
                 avg_v = (car.velocity + next_car.velocity) / 2
                 car.velocity = avg_v
                 next_car.velocity = avg_v
+                
                 # Change color to indicate collision and start timer
                 car.color = 'orange'
                 next_car.color = 'orange'
