@@ -41,19 +41,19 @@ class ControlWindow:
 
         # Default values for simulation parameters
         default_values = {
-            "car_number": 10,
+            "car_number": 15,
             "kd": 2.0,
-            "kv": 1.0,
-            "kc": 0.5,
-            "v_des": 30.0,
-            "max_v": 60.0,
+            "kv": 1.5,
+            "kc": 1.0,
+            "v_des": 25.0,
+            "max_v": 50.0,
             "min_v": 0.0,
-            "min_dis": 15.0,
-            "reaction_time": 1.0,
-            "max_a": 3.0,
-            "min_a": -10.0,
-            # "ttc_inverse": 10.0,
-            "min_gap": 5.0
+            "min_dis": 20.0,
+            "reaction_time": 0.8,
+            "max_a": 4.5,
+            "min_a": -9.0,
+            "min_gap": 5.0,
+            "dt": 0.05  
         }
         
         params = [
@@ -64,11 +64,12 @@ class ControlWindow:
             ("v_des", "Desired Velocity"),
             ("max_v", "Max Velocity"),
             ("min_v", "Min Velocity"),
-            ("min_dis", "Min Distance"),
+            ("min_dis", "Min Distance Between cars (buffer distance)"),
             ("reaction_time", "Reaction Time"),
             ("max_a", "Max Acceleration"),
             ("min_a", "Min Acceleration"),
-            ("min_gap", "Minimum Gap Between Cars (min_gap)")
+            ("min_gap", "Minimum Gap Between Cars (for collision check)"),
+            ("dt", "Simulation Time Step (dt)")  
         ]
 
         # Create label and entry for each parameter
@@ -131,8 +132,7 @@ class ControlWindow:
         self.leader_stop_acc = False
         self.leader_stop_bcc = False
 
-        self.dt = 0.1  # Fixed simulation time step (seconds)
-
+        self.dt = default_values["dt"] 
 
     
     def load_velocity_profile(self, filename="data.csv"):
@@ -149,7 +149,7 @@ class ControlWindow:
     def run_simulation(self):
        # Get parameter values from entry fields
         args = []
-        for key in ["car_number", "kd", "kv", "kc", "v_des", "max_v", "min_v", "min_dis","reaction_time", "max_a", "min_a", "min_gap"]:
+        for key in ["car_number", "kd", "kv", "kc", "v_des", "max_v", "min_v", "min_dis","reaction_time", "max_a", "min_a", "min_gap", "dt"]:
             val = self.entries[key].get()
             try:
                 val = float(val) if '.' in val or 'e' in val.lower() else int(val)
@@ -157,12 +157,14 @@ class ControlWindow:
                 val = 0
             args.append(val)
 
+        self.dt = args[-1]  # Set self.dt from user input
+
         self.city_acc = City()
         self.city_bcc = City()
 
-        # Initialize cities with parameters for ACC and BCC models
-        self.city_acc.init(*args, model='ACC')
-        self.city_bcc.init(*args, model='BCC')
+        # Initialize cities with parameters for ACC and BCC models, including dt
+        self.city_acc.init(*args[:-1], dt=self.dt, model='ACC')
+        self.city_bcc.init(*args[:-1], dt=self.dt, model='BCC')
 
         # Update painters with new city elements
         self.painter_acc.set_elements(self.city_acc.roads, self.city_acc.cars)
@@ -173,9 +175,9 @@ class ControlWindow:
         self.leader_stop_bcc = False
 
         # Load velocity profile from CSV file
-        self.load_velocity_profile()
-        self.city_acc.ego_velocity_profile = self.ego_velocity_profile
-        self.city_bcc.ego_velocity_profile = self.ego_velocity_profile
+        # self.load_velocity_profile()
+        # self.city_acc.ego_velocity_profile = self.ego_velocity_profile
+        # self.city_bcc.ego_velocity_profile = self.ego_velocity_profile
 
         # Start simulation timer
         self.start_timer()
@@ -246,9 +248,8 @@ class ControlWindow:
         self.ax_bcc.grid(True)
         self.canvas_bcc.draw()
 
-
     def update_simulation(self):
-        dt = self.dt  
+        dt = self.dt 
 
         # Set leader stop flags for both cities
         self.city_acc.set_leader_stop(self.leader_stop_acc)
@@ -268,10 +269,10 @@ class ControlWindow:
 
         # Update live graphs with velocity profiles
         # Comment the below line to disable live graph and improve simulation performance
-        self.update_live_graphs()
+        # self.update_live_graphs()
         
         # Schedule next update for 0.1 seconds later (100 ms)
-        self.timer = self.master.after(100, self.update_simulation)
+        self.timer = self.master.after(int(dt*1000), self.update_simulation)
 
     def stop_simulation(self):
         self.leader_stop_acc = True

@@ -10,13 +10,15 @@ class City:
         self.step_count = 0
         self.model = 'ACC'  
         self.min_gap = 5.0  # Default value
+        self.dt = 0.1  # Default time step
 
-    def init(self, car_number, kd, kv, kc, v_des, max_v, min_v, min_dis, reaction_time, max_a, min_a, min_gap=5.0, model='ACC'):
+    def init(self, car_number, kd, kv, kc, v_des, max_v, min_v, min_dis, reaction_time, max_a, min_a, min_gap=5.0, dt=0.1, model='ACC'):
         # Reset simulation state
         self.cars.clear()
         self.roads.clear()
         self.step_count = 0
         self.model = model
+        self.dt = dt
 
         # Create a single straight road for simplicity
         road = Road(None, None, None, None, 1000, 0, 0, 1, 0)
@@ -24,20 +26,20 @@ class City:
 
         # Place cars at intervals along the road
         for i in range(int(car_number)):
-            initial_car_spacing = 50  # Initial spacing between cars
-            pos = i * initial_car_spacing + 10  # Space cars 50 units apart
-            velocity = 0
-             # Initial velocity of each car
+            # Initial velocity, position, and sizeof each car
+            velocity = v_des
+            car_length = 5
+            headway = min_dis + velocity * reaction_time
+            pos = i * (car_length + headway) 
             if i == 0:
-                color = 'red'  # First car is red (ego)
+                color = 'red'  
             elif i == car_number - 1:
-                color = 'green'  # Last car is green
+                color = 'green'
             else:
-                color = 'blue'  # Others are blue
-            car_length = 5  # If the car is a point object, its length is 0
+                color = 'blue'
             car = Car(length=car_length, color=color, pos=pos,min_dis=min_dis, velocity=velocity, acceleration=0, current_road=road)
-            car.original_color = color  # Store original color
-            car.collision_timer = 0     # Timer for collision color
+            car.original_color = color  
+            car.collision_timer = 0
             self.cars.append(car)
             road.enter_road(car)
 
@@ -51,10 +53,13 @@ class City:
         self.reaction_time = reaction_time
         self.max_a = max_a
         self.min_a = min_a
+        self.min_dis = min_dis
         self.min_gap = min_gap
 
-    def run(self, dt=0.1):
+    def run(self, dt=None):
         # Run one simulation step with real dt
+        if dt is None:
+            dt = self.dt
         self.driver_decision()
         self.move_forward(dt)
         self.step_count += 1
@@ -64,27 +69,36 @@ class City:
 
     # Main code to calculate acclerattion
     def driver_decision(self):
-        # Decide acceleration for each car based on the selected model
         road_length = self.roads[0].length if self.roads else 1000
+        dt = self.dt
+        car_states = [(c.pos, c.velocity) for c in self.cars]
+
         for idx, car in enumerate(self.cars):
             if idx == 0 and hasattr(self, 'leader_stop') and self.leader_stop:
                 # Ego vehicle: decelerate to stop if leader_stop is set
                 acc = self.min_a
                 car.acceleration = acc
-                if car.velocity + acc * 0.1 < 0:
+                if car.velocity + acc * dt < 0:
                     car.velocity = 0
                     car.acceleration = 0
                 continue
             if idx == 0:
-                if self.ego_velocity_profile:
+                # If velocity profile available, then use it instead of desired velocity
+                if hasattr(self, 'ego_velocity_profile') and self.ego_velocity_profile:
                     step = self.step_count
-                    dt = 0.1
                     time = round(step * dt, 3)
                     # Find the closest matching time point
                     for t, v in self.ego_velocity_profile:
                         if abs(t - time) < dt / 2:
+                            # Find accleration required to reach this velocity
+                            current_velocity = car.velocity
+                            required_velocity = v
+
+                            # Uncomment out the below line if u wnat to calcualte accleration based on the velocity profile
+                            # car.acceleration = (required_velocity - current_velocity) / dt
+
                             car.velocity = v
-                            car.acceleration = 0  # Optional: no acceleration
+                            car.acceleration = 0 
                             break
                 else:
                     # Ego vehicle: try to reach desired velocity
@@ -110,13 +124,14 @@ class City:
             if self.model == 'ACC':
                 # Active Cruise Control: only consider the car in front
                 if front_car:
-                    gap = (car.pos - front_car.pos -  car.length) % road_length
-                    rel_v = front_car.velocity - car.velocity
-                    min_dis = 20
-                    desired_gap = min_dis + car.velocity * self.reaction_time
-                    # Below is the formula for acceleration
-                    acc = self.kd * (gap - desired_gap) + self.kv * rel_v
-                    # print(f"Car {idx} - Velocity {car.velocity} - Gap: {gap}, Relative Velocity: {rel_v}, Desired Gap: {desired_gap}, Acceleration: {acc}")
+                    car_pos, car_vel = car_states[idx]
+                    front_idx = self.cars.index(front_car)
+                    front_car_pos, front_car_vel = car_states[front_idx]
+
+                    gap = (car_pos - front_car_pos - car.length ) % road_length
+                    rel_v = front_car_vel - car_vel
+                    desired_gap = self.min_dis + car_vel * self.reaction_time
+                    acc = 0.5 * self.kd * (gap - desired_gap) + 0.5 * self.kv * rel_v
                     acc = max(self.min_a, min(self.max_a, acc))
                     car.acceleration = acc
                 else:
@@ -125,30 +140,58 @@ class City:
                     acc = max(self.min_a, min(self.max_a, acc))
                     car.acceleration = acc
             elif self.model == 'BCC':
-            #    BCC Logic here
-                min_dis = 20
-                desired_gap = min_dis + car.velocity * self.reaction_time
+                # For the last car, use ACC logic
+                if idx == len(self.cars) - 1:
+                    if front_car:
+                        car_pos, car_vel = car_states[idx]
+                        front_idx = self.cars.index(front_car)
+                        front_car_pos, front_car_vel = car_states[front_idx]
+                        gap = (car_pos - front_car_pos - car.length ) % road_length
+                        rel_v = front_car_vel - car_vel
+                        desired_gap = self.min_dis + car_vel * self.reaction_time
+                        acc = 0.5 * self.kd * (gap - desired_gap) + 0.5 * self.kv * rel_v
+                        acc = max(self.min_a, min(self.max_a, acc))
+                        car.acceleration = acc
+                    else:
+                        acc = self.kc * (self.v_des - car.velocity)
+                        acc = max(self.min_a, min(self.max_a, acc))
+                        car.acceleration = acc
+                # Otherwise, use BCC logic
+                elif front_car and back_car:
+                    car_pos, car_vel = car_states[idx]
+                    front_idx = self.cars.index(front_car)
+                    front_car_pos, front_car_vel = car_states[front_idx]
+                    back_idx = self.cars.index(back_car)
+                    back_car_pos, back_car_vel = car_states[back_idx]
 
-                front_gap = abs((car.pos - front_car.pos - front_car.length) % road_length)
-                back_gap = abs((back_car.pos - car.pos - car.length) % road_length)
+                    desired_gap = self.min_dis + car_vel * self.reaction_time
 
-                gap_factor = self.kd * (front_gap - desired_gap)+self.kd * (desired_gap - back_gap) 
-                velocity_factor = self.kv * (front_car.velocity -  car.velocity) +self.kv*( -car.velocity + back_car.velocity)
+                    front_gap = abs((car_pos - front_car_pos - front_car.length) % road_length)
+                    back_gap = abs((back_car_pos - car_pos - car.length) % road_length)
 
-                a = velocity_factor + gap_factor
-                if(idx == len(self.cars) - 1):
-                    a = self.kd * (front_gap - desired_gap) + self.kv * (front_car.velocity - car.velocity)
-                a = max(self.min_a, min(self.max_a, a))
-                car.acceleration = a
+                    gap_factor = 0.5 * self.kd * (front_gap - desired_gap) + 0.5 * self.kd * (desired_gap - back_gap)
+                    velocity_factor = 0.5 * self.kv * (front_car_vel - car_vel) + 0.5 * self.kv * (back_car_vel - car_vel)
+
+                    acc = velocity_factor + gap_factor
+                    acc = max(self.min_a, min(self.max_a, acc))
+                    car.acceleration = acc
+                else:
+                    acc = self.kc * (self.v_des - car.velocity)
+                    acc = max(self.min_a, min(self.max_a, acc))
+                    car.acceleration = acc
+                    
+
 
        
-    def move_forward(self, dt=0.1):
+    def move_forward(self, dt=None):
+        if dt is None:
+            dt = self.dt
         # Move all cars forward based on their velocity and acceleration
         for car in self.cars:
             car.update(dt)
             # Clamp velocity to not exceed max_v
-            if car.velocity > self.max_v:
-                car.velocity = self.max_v
+            car.velocity = max(self.min_v, min(car.velocity, self.max_v))
+            
             # Fade collision color if timer is active
             if hasattr(car, 'collision_timer') and car.collision_timer > 0:
                 car.collision_timer -= 1

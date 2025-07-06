@@ -54,14 +54,3 @@ class Car:
             self.pos -= road_length
         self.pos_history.append(self.pos)
         self.vel_history.append(self.velocity)
-
-    # def ttc_inverse(self, front_car, road_length=None):
-    #     if front_car:
-    #         rel_v = self.velocity - front_car.velocity
-    #         # Calculate gap considering circular road
-    #         if road_length is None:
-    #             road_length = self.current_road.length if hasattr(self, 'current_road') else 1000
-    #         gap = (front_car.pos - self.pos - self.length) % road_length
-    #         if gap > 0 and rel_v > 0:
-    #             return rel_v / gap
-    #     return 0.0
