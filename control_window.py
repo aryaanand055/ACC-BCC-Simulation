@@ -1,9 +1,13 @@
+'''
+control_window.py: Contains the ControlWindow class for managing the traffic simulation GUI.
+'''
+
+
 import tkinter as tk
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 import csv
-import time
 from city import City
 from transportation_painter import TransportationPainter
 
@@ -48,7 +52,7 @@ class ControlWindow:
             "v_des": 25.0,
             "max_v": 50.0,
             "min_v": 0.0,
-            "min_dis": 20.0,
+            "min_dis": 25.0,
             "reaction_time": 0.8,
             "max_a": 4.5,
             "min_a": -9.0,
@@ -175,9 +179,9 @@ class ControlWindow:
         self.leader_stop_bcc = False
 
         # Load velocity profile from CSV file
-        # self.load_velocity_profile()
-        # self.city_acc.ego_velocity_profile = self.ego_velocity_profile
-        # self.city_bcc.ego_velocity_profile = self.ego_velocity_profile
+        self.load_velocity_profile()
+        self.city_acc.ego_velocity_profile = self.ego_velocity_profile
+        self.city_bcc.ego_velocity_profile = self.ego_velocity_profile
 
         # Start simulation timer
         self.start_timer()

@@ -1,4 +1,6 @@
-'''City .py'''
+'''
+City .py: Contains the City class for managing the traffic simulation.
+'''
 
 from car import Car
 from road import Road
@@ -9,8 +11,8 @@ class City:
         self.roads = []
         self.step_count = 0
         self.model = 'ACC'  
-        self.min_gap = 5.0  # Default value
-        self.dt = 0.1  # Default time step
+        self.min_gap = 5.0 
+        self.dt = 0.1 
 
     def init(self, car_number, kd, kv, kc, v_des, max_v, min_v, min_dis, reaction_time, max_a, min_a, min_gap=5.0, dt=0.1, model='ACC'):
         # Reset simulation state
@@ -21,13 +23,13 @@ class City:
         self.dt = dt
 
         # Create a single straight road for simplicity
-        road = Road(None, None, None, None, 1000, 0, 0, 1, 0)
+        road = Road(1000, 0, 0, 1, 0)
         self.roads.append(road)
 
         # Place cars at intervals along the road
         for i in range(int(car_number)):
             # Initial velocity, position, and sizeof each car
-            velocity = v_des
+            velocity = 0
             car_length = 5
             headway = min_dis + velocity * reaction_time
             pos = i * (car_length + headway) 
@@ -83,23 +85,26 @@ class City:
                     car.acceleration = 0
                 continue
             if idx == 0:
-                # If velocity profile available, then use it instead of desired velocity
                 if hasattr(self, 'ego_velocity_profile') and self.ego_velocity_profile:
-                    step = self.step_count
-                    time = round(step * dt, 3)
-                    # Find the closest matching time point
-                    for t, v in self.ego_velocity_profile:
-                        if abs(t - time) < dt / 2:
-                            # Find accleration required to reach this velocity
+                    time = round(self.step_count * dt, 3)
+                    for i in range(len(self.ego_velocity_profile)-1):
+                        t1,v1 = self.ego_velocity_profile[i]
+                        t2, v2 = self.ego_velocity_profile[i+1]
+                        if t1 <= time <= t2:
+                            alpha = (time - t1) / (t2 - t1)
+                            target_velocity = v1 + alpha * (v2 - v1)
                             current_velocity = car.velocity
-                            required_velocity = v
-
-                            # Uncomment out the below line if u wnat to calcualte accleration based on the velocity profile
-                            # car.acceleration = (required_velocity - current_velocity) / dt
-
-                            car.velocity = v
-                            car.acceleration = 0 
+                            acc = (target_velocity - current_velocity) / dt
+                            car.acceleration = max(self.min_a, min(self.max_a, acc))
                             break
+                    else:
+                        # If time exceeds profile, maintain last velocity
+                        t1, v1 = self.ego_velocity_profile[-1]
+                        target_velocity = v1
+                        current_velocity = car.velocity
+                        acc = (target_velocity - current_velocity) / dt
+                        acc = max(self.min_a, min(self.max_a, acc))
+                        car.acceleration = acc
                 else:
                     # Ego vehicle: try to reach desired velocity
                     acc = self.kc * (self.v_des - car.velocity)
@@ -191,7 +196,7 @@ class City:
             car.update(dt)
             # Clamp velocity to not exceed max_v
             car.velocity = max(self.min_v, min(car.velocity, self.max_v))
-            
+
             # Fade collision color if timer is active
             if hasattr(car, 'collision_timer') and car.collision_timer > 0:
                 car.collision_timer -= 1
