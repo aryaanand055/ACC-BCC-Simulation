@@ -11,6 +11,9 @@ class Car:
         self.velocity = velocity
         self.acceleration = acceleration
         self.current_road = current_road
+        self.energy_used = 0.0
+        self.mass = 1800
+        self.frontal_area = 2.2
         self.pos_history = []
         self.vel_history = []
 
@@ -54,3 +57,25 @@ class Car:
             self.pos -= road_length
         self.pos_history.append(self.pos)
         self.vel_history.append(self.velocity)
+
+        # Energy calculation
+        gravity = 9.8
+        mass = self.mass
+        frontal_area = self.frontal_area
+        velocity = self.velocity
+        acceleration = self.acceleration
+        air_density = 1.225
+        Cr = 0.015  # Rolling resistance coefficient
+        Cd = 0.29 # Drag coefficient
+
+        F_inertia = mass * acceleration
+        F_roll = Cr * mass * gravity
+        F_drag = 0.5 * Cd * air_density * frontal_area * velocity**2
+        F_total = F_inertia + F_roll + F_drag
+
+        Power = F_total * velocity
+
+        Energy = Power * dt 
+        Energy = Energy / 3600000  # Convert to kWh
+        if Energy > 0:
+            self.energy_used += Energy

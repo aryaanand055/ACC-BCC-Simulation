@@ -46,7 +46,7 @@ class ControlWindow:
         # Default values for simulation parameters
         default_values = {
             "car_number": 15,
-            "kd": 2.0,
+            "kd": 2.3,
             "kv": 1.5,
             "kc": 1.0,
             "v_des": 25.0,
@@ -104,12 +104,15 @@ class ControlWindow:
         self.painter_acc = TransportationPainter(self.scrollable_frame, self.city_acc.roads, self.city_acc.cars, width=1500, height=300, bg='white')
         self.painter_acc.pack()
         tk.Label(self.scrollable_frame, text="ACC").pack()
+        self.energy_label_acc = tk.Label(self.scrollable_frame, text="Total Energy : 0 KwH", font=("Arial", 10, "bold"))
+        self.energy_label_acc.pack()
 
         # # Visualization for BCC (bottom)
         self.painter_bcc = TransportationPainter(self.scrollable_frame, self.city_bcc.roads, self.city_bcc.cars, width=1500, height=300, bg='white')
         self.painter_bcc.pack()
         tk.Label(self.scrollable_frame, text="BCC").pack()
-        
+        self.energy_label_bcc = tk.Label(self.scrollable_frame, text="Total Energy : 0 KwH", font=("Arial", 10, "bold"))
+        self.energy_label_bcc.pack()
 
         self.fig_acc = Figure(figsize=(7, 2.5), dpi=100)
         self.ax_acc = self.fig_acc.add_subplot(111)
@@ -179,9 +182,9 @@ class ControlWindow:
         self.leader_stop_bcc = False
 
         # Load velocity profile from CSV file
-        self.load_velocity_profile()
-        self.city_acc.ego_velocity_profile = self.ego_velocity_profile
-        self.city_bcc.ego_velocity_profile = self.ego_velocity_profile
+        # self.load_velocity_profile()
+        # self.city_acc.ego_velocity_profile = self.ego_velocity_profile
+        # self.city_bcc.ego_velocity_profile = self.ego_velocity_profile
 
         # Start simulation timer
         self.start_timer()
@@ -275,6 +278,15 @@ class ControlWindow:
         # Comment the below line to disable live graph and improve simulation performance
         # self.update_live_graphs()
         
+        # Calculate total energy
+        total_energy_acc = sum(car.energy_used for car in self.city_acc.cars)
+        total_energy_bcc = sum(car.energy_used for car in self.city_bcc.cars)
+        
+        # Update label texts
+        self.energy_label_acc.config(text=f"Total Energy : {total_energy_acc:.4f} KwH")
+        self.energy_label_bcc.config(text=f"Total Energy : {total_energy_bcc:.4f} KwH")
+
+
         # Schedule next update for 0.1 seconds later (100 ms)
         self.timer = self.master.after(int(dt*1000), self.update_simulation)
 

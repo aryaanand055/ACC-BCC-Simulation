@@ -28,7 +28,6 @@ class Road:
 
     def enter_road(self, car):
         self.cars_on_road.insert(0, car)
-        print(self.cars_on_road)
 
     def exit_road(self, car):
         if self.cars_on_road and self.cars_on_road[-1] == car:

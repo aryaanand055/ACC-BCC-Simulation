@@ -106,7 +106,7 @@ class City:
                         acc = max(self.min_a, min(self.max_a, acc))
                         car.acceleration = acc
                 else:
-                    # Ego vehicle: try to reach desired velocity
+                    # Ego fallback: try to reach v_des if no velocity profile
                     acc = self.kc * (self.v_des - car.velocity)
                     acc = max(self.min_a, min(self.max_a, acc))
                     car.acceleration = acc
@@ -215,7 +215,7 @@ class City:
             # Calculate gap considering circular road
             gap = (next_car.pos - car.pos - car.length) % road_length
             min_gap = self.min_gap  # Use instance parameter
-            if gap < car.length :
+            if gap < min_gap:
                 # Prevent overlap: set next_car just behind car, match velocities
                 next_car.pos = (car.pos + car.length + min_gap) % road_length
                 avg_v = (car.velocity + next_car.velocity) / 2
