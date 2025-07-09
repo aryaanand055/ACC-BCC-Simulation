@@ -27,23 +27,22 @@ class TransportationPainter(tk.Canvas):
         self.paint()
 
     def paint(self):
-        # Draw roads (as a single horizontal line for now)
+        self.delete('all')
+        # Draw roads (one line per lane)
         for road in self.roads:
-            x1, y1 = 100, 200
-            x2, y2 = 1100, 200
-            self.create_line(x1, y1, x2, y2, width=8, fill='gray')
-            
-        # Draw cars sorted by position (lowest pos = rightmost)
-        if self.cars:
-            sorted_cars = sorted(self.cars, key=lambda c: c.pos)
-            l = len(sorted_cars)
-            for i in range(l-1, -1, -1):
-                car = sorted_cars[i]
-                road_length = self.roads[0].length if self.roads else 1000
-                # Inverted mapping: lowest pos = rightmost (x2), highest pos = leftmost (x1)
-                x = 1100 - (car.pos / road_length) * 1000
-                y = 200
-                self.create_rectangle(x-car.length/2, y-10, x+car.length/2, y+10, fill=car.color, outline='black')
-                self.create_text(x, y-25, text=f"{car.velocity:.1f}")
-
-   
+            for lane_id in range(road.num_lanes):
+                x1, y1 = 100, 200 + lane_id * 50  # Offset lanes vertically
+                x2, y2 = 1100, 200 + lane_id * 50
+                self.create_line(x1, y1, x2, y2, width=8, fill='gray')
+                
+        # Draw cars sorted by position within each lane
+        road_length = self.roads[0].length if self.roads else 1000
+        for road in self.roads:
+            for lane_id in range(road.num_lanes):
+                lane_cars = [car for car in road.get_cars_in_lane(lane_id)]
+                sorted_cars = sorted(lane_cars, key=lambda c: c.pos)
+                for car in sorted_cars:
+                    x = 1100 - (car.pos / road_length) * 1000
+                    y = 200 + lane_id * 50  # Offset by lane
+                    self.create_rectangle(x - car.length/2, y - 10, x + car.length/2, y + 10, fill=car.color, outline='black')
+                    self.create_text(x, y - 25, text=f"{car.velocity:.1f}")

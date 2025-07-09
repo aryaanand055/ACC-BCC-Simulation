@@ -137,6 +137,13 @@ class ControlWindow:
         self.canvas_bcc = FigureCanvasTkAgg(self.fig_bcc, self.scrollable_frame)
         self.canvas_bcc.get_tk_widget().pack()
 
+        # Add lane change button
+        self.lane_change_button = tk.Button(self.panel, text="Trigger Lane Change", command=self.trigger_lane_change)
+        self.lane_change_button.grid(row=len(params)+3, column=1)
+        # Add label for gap info
+        self.gap_label = tk.Label(self.scrollable_frame, text="Gap Info: N/A", font=("Arial", 10))
+        self.gap_label.pack()
+
         # Timer for simulation updates
         self.timer = None
 
@@ -157,6 +164,22 @@ class ControlWindow:
                 self.ego_velocity_profile.append((time, velocity))
         print("Velocity profile loaded from", filename)
 
+    def trigger_lane_change(self):
+        ego_car = self.city_acc.cars[0] if self.city_acc.cars else None
+        if ego_car:
+            target_lane_id = 1 if ego_car.lane_id == 0 else 0
+            feasible, gap_data = self.city_acc.check_lane_change(ego_car, target_lane_id)
+            if feasible:
+                self.city_acc.perform_lane_change(ego_car, target_lane_id)
+                self.city_bcc.perform_lane_change(self.city_bcc.cars[0], target_lane_id)
+            gap_text = (f"Feasible: {gap_data['feasible']}, "
+                       f"G_front_min: {gap_data['g_front_min']:.1f}, "
+                       f"G_rear_min: {gap_data['g_rear_min']:.1f}, "
+                       f"G_required: {gap_data['g_required']:.1f}, "
+                       f"G_lead: {gap_data['g_lead']:.1f}, "
+                       f"G_follow: {gap_data['g_follow']:.1f}, "
+                       f"G_available: {gap_data['g_available']:.1f}")
+            self.gap_label.config(text=f"Gap Info: {gap_text}")
 
     def run_simulation(self):
        # Get parameter values from entry fields
