@@ -214,7 +214,7 @@ class City:
             min_gap = self.min_gap  # Use instance parameter
 
             # Calculate gap considering circular road
-            hasCollided = ((next_car.pos - car.pos) % road_length) <= car.length + self.min_gap
+            hasCollided = ((next_car.pos - car.pos) % road_length) <= car.length
 
             if hasCollided:
                 v1 = car.velocity
