@@ -211,19 +211,27 @@ class City:
         sorted_cars = sorted(self.cars, key=lambda c: c.pos)
         for i, car in enumerate(sorted_cars):
             next_car = sorted_cars[(i + 1) % len(sorted_cars)]
+            min_gap = self.min_gap  # Use instance parameter
 
             # Calculate gap considering circular road
-            gap = (next_car.pos - car.pos - car.length) % road_length
-            min_gap = self.min_gap  # Use instance parameter
-            if gap < min_gap:
+            hasCollided = ((next_car.pos - car.pos) % road_length) <= car.length + self.min_gap
+
+            if hasCollided:
+                v1 = car.velocity
+                v2 = next_car.velocity
+                e = car.CoR if hasattr(car, 'CoR') else 0.3
+
                 # Prevent overlap: set next_car just behind car, match velocities
-                next_car.pos = (car.pos + car.length + min_gap) % road_length
-                avg_v = (car.velocity + next_car.velocity) / 2
-                car.velocity = avg_v
-                next_car.velocity = avg_v
                 
+                car.velocity = ((1 - e) * v1 + (1 + e) * v2) / 2
+                next_car.velocity = ((1 - e) * v2 + (1 + e) * v1) / 2
+
+                next_car.pos = (car.pos + car.length + self.min_gap) % road_length
+
                 # Change color to indicate collision and start timer
                 car.color = 'orange'
                 next_car.color = 'orange'
                 car.collision_timer = 40  # 40 steps * 0.1s = 4 seconds
                 next_car.collision_timer = 40
+    
+     

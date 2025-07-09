@@ -43,7 +43,7 @@ class TransportationPainter(tk.Canvas):
                 # Inverted mapping: lowest pos = rightmost (x2), highest pos = leftmost (x1)
                 x = 1100 - (car.pos / road_length) * 1000
                 y = 200
-                self.create_rectangle(x-5, y-15, x+5, y+15, fill=car.color, outline='black')
-                self.create_text(x, y-25, text=f"v={car.velocity:.1f}")
+                self.create_rectangle(x-car.length/2, y-10, x+car.length/2, y+10, fill=car.color, outline='black')
+                self.create_text(x, y-25, text=f"{car.velocity:.1f}")
 
    

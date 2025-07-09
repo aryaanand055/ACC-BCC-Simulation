@@ -14,6 +14,9 @@ class Car:
         self.energy_used = 0.0
         self.mass = 1800
         self.frontal_area = 2.2
+        self.CoR = 0.2 # Coefficient of Restitution
+        self.Cr = 0.015  # Rolling resistance coefficient
+        self.Cd = 0.29 # Drag coefficient
         self.pos_history = []
         self.vel_history = []
 
@@ -64,12 +67,12 @@ class Car:
         frontal_area = self.frontal_area
         velocity = self.velocity
         acceleration = self.acceleration
+        cr = self.Cr
+        Cd = self.Cd
         air_density = 1.225
-        Cr = 0.015  # Rolling resistance coefficient
-        Cd = 0.29 # Drag coefficient
-
+       
         F_inertia = mass * acceleration
-        F_roll = Cr * mass * gravity
+        F_roll = cr * mass * gravity
         F_drag = 0.5 * Cd * air_density * frontal_area * velocity**2
         F_total = F_inertia + F_roll + F_drag
 

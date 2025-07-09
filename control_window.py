@@ -56,7 +56,7 @@ class ControlWindow:
             "reaction_time": 0.8,
             "max_a": 4.5,
             "min_a": -9.0,
-            "min_gap": 5.0,
+            "min_gap": 2.0,
             "dt": 0.05  
         }
         
