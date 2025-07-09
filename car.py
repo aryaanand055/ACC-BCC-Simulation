@@ -50,8 +50,6 @@ class Car:
 
         self.velocity += self.acceleration * dt
 
-        if self.velocity < 0:
-            self.velocity = 0
 
         road_length = self.current_road.length if hasattr(self, 'current_road') else 1000
         if self.pos < 0:

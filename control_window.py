@@ -96,6 +96,11 @@ class ControlWindow:
         self.plot_button = tk.Button(self.panel, text="Plot Velocity Profiles", command=self.plot_velocities)
         self.plot_button.grid(row=len(params)+2, column=1)
         
+        # Checkbox to enable velocity profile
+        self.use_velocity_profile = tk.BooleanVar(value=False)
+        self.velocity_profile_checkbox = tk.Checkbutton(self.panel, text="Enable Ego Velocity Profile (from data.csv)", variable=self.use_velocity_profile)
+        self.velocity_profile_checkbox.grid(row=len(params)+1, column=0, columnspan=2, sticky="w")
+
         # Create a City instance for ACC 
         self.city_acc = City()
         self.city_bcc = City()
@@ -181,10 +186,14 @@ class ControlWindow:
         self.leader_stop_acc = False
         self.leader_stop_bcc = False
 
-        # Load velocity profile from CSV file
-        # self.load_velocity_profile()
-        # self.city_acc.ego_velocity_profile = self.ego_velocity_profile
-        # self.city_bcc.ego_velocity_profile = self.ego_velocity_profile
+        # Load velocity profile from CSV file if enabled
+        if self.use_velocity_profile.get():
+            self.load_velocity_profile()
+            self.city_acc.ego_velocity_profile = self.ego_velocity_profile
+            self.city_bcc.ego_velocity_profile = self.ego_velocity_profile
+        else:
+            self.city_acc.ego_velocity_profile = []
+            self.city_bcc.ego_velocity_profile = []
 
         # Start simulation timer
         self.start_timer()
