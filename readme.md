@@ -1,6 +1,6 @@
 # Traffic Simulation: ACC and BCC Python Code
 
-This project simulates traffic flow using car-following models, including both Adaptive Cruise Control (ACC) and Bilateral Cruise Control (BCC). The simulation is visualized using a Tkinter-based GUI.
+This project simulates traffic flow using car-following models, including Adaptive Cruise Control (ACC), Bilateral Cruise Control (BCC) and an integrated model of ACC + BCC. The simulation is visualized using a Tkinter-based GUI.
 
 ## Project Structure
 - `car.py`: Defines the `Car` class, representing individual vehicles and their dynamics.
@@ -8,14 +8,14 @@ This project simulates traffic flow using car-following models, including both A
 - `city.py`: Contains the `City` class, which manages the simulation, including cars, roads, and the main logic for updating vehicle states.
 - `control_window.py`: The main GUI controller. Handles user input, simulation parameters, and starts/stops the simulation.
 - `transportation_painter.py`: Handles visualization of the simulation using Tkinter.
-- `data.csv`: Optional. Used for custom velocity profiles.
+- `data(1,2).csv`: Optional. Used for custom velocity profiles.
 
 ## How It Works
 - The simulation creates a number of cars on a circular road.
-- Each car's acceleration is determined by the selected car-following model (ACC or BCC).
+- Each car's acceleration is determined by the selected car-following model.
 - The simulation updates car positions, velocities, and handles collisions at each time step.
 - The GUI allows you to set parameters such as the number of cars, control gains (`kd`, `kv`, `kc`), desired velocity, minimum distance (`min_dis`), minimum gap for collision (`min_gap`), and more.
-- The simulation is visualized in real time, showing car positions and velocities.
+- The simulation is visualized in real time, showing car positions, velocities and the cuurent modal under which it is running.
 
 ## How to Run
 1. **Requirements**: Python 3.x. No external libraries are required beyond Tkinter (included with standard Python).
@@ -27,8 +27,10 @@ This project simulates traffic flow using car-following models, including both A
    - This opens a window where you can set simulation parameters and control the simulation.
 3. **Controls**:
    - **Run**: Starts the simulation with the current parameters.
-   - **Stop Ego**: Stops the lead (ego) car in both ACC and BCC models.
-   - **Resume Ego**: Resumes the lead car's movement.
+   - **Stop Lead**: Stops the lead (ego) car in both ACC and BCC models.
+   - **Resume Lead**: Resumes the lead car's movement.
+    - **Plot Velocity Profiles**: Plot the velocity time profiles for all three of the models
+    - **Plot Gap switching**: Plot the available gap value and the required value for switching between models and marks points where it switches
    - You can adjust parameters such as number of cars, control gains, desired velocity, minimum distance, minimum gap, and time step before running the simulation.
 
 ## Key Parameters
@@ -45,6 +47,7 @@ This project simulates traffic flow using car-following models, including both A
 ## Notes
 - The simulation uses a circular road, so cars wrap around when reaching the end.
 - Visualization shows each car as a rectangle, with the lead car in red, the last car in green, and others in blue.
+- A crash is indicated by the car turning yellow
 - The BCC model is implemented, but the last car always follows ACC logic for stability.
 
 
