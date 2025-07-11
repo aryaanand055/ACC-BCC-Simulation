@@ -1,5 +1,5 @@
 '''
-control_window.py: Contains the ControlWindow class for managing the traffic simulation GUI.
+Control_window.py: Contains the ControlWindow class for managing the traffic simulation GUI.
 '''
 
 
@@ -45,7 +45,7 @@ class ControlWindow:
 
         # Default values for simulation parameters
         default_values = {
-            "car_number": 15,
+            "car_number": 3,
             "kd": 2.3,
             "kv": 1.5,
             "kc": 1.0,
@@ -87,23 +87,44 @@ class ControlWindow:
         # Buttons for running, stopping, and resuming simulations
         self.run_button = tk.Button(self.panel, text="Run", command=self.run_simulation)
         self.run_button.grid(row=len(params), column=0)
-        self.stop_button_acc = tk.Button(self.panel, text="Stop Ego", command=lambda: self.stop_simulation())
-        self.stop_button_acc.grid(row=len(params), column=1)
-        self.resume_button_acc = tk.Button(self.panel, text="Resume Ego", command=lambda: self.resume_simulation())
-        self.resume_button_acc.grid(row=len(params), column=2)
+
+
+        # self.stop_button_acc = tk.Button(self.panel, text="Stop Ego", command=lambda: self.stop_simulation())
+        # self.stop_button_acc.grid(row=len(params), column=1)
+        # self.resume_button_acc = tk.Button(self.panel, text="Resume Ego", command=lambda: self.resume_simulation())
+        # self.resume_button_acc.grid(row=len(params), column=2)
+
+        # Extra buttons for controlling LEAD and FOLLOWING separately
+        self.stop_lead_button = tk.Button(self.panel, text="Stop Lead", command=lambda: self.stop_lead())
+        self.stop_lead_button.grid(row=len(params), column=1)
+
+        self.resume_lead_button = tk.Button(self.panel, text="Resume Lead", command=lambda: self.resume_lead())
+        self.resume_lead_button.grid(row=len(params), column=2)
+
+        self.stop_following_button = tk.Button(self.panel, text="Stop Following", command=lambda: self.stop_follower())
+        self.stop_following_button.grid(row=len(params)+1, column=1)
+
+        self.resume_following_button = tk.Button(self.panel, text="Resume Following", command=lambda: self.resume_follower())
+        self.resume_following_button.grid(row=len(params)+1, column=2)
+
 
         # Btn for graphs
         self.plot_button = tk.Button(self.panel, text="Plot Velocity Profiles", command=self.plot_velocities)
         self.plot_button.grid(row=len(params)+2, column=1)
         
+        # Btn for gap and x
+        self.plot_button = tk.Button(self.panel, text="Plot Gap Switching", command=self.plot_velocities_and_gap_switching)
+        self.plot_button.grid(row=len(params)+2, column=2)
+        
         # Checkbox to enable velocity profile
         self.use_velocity_profile = tk.BooleanVar(value=False)
-        self.velocity_profile_checkbox = tk.Checkbutton(self.panel, text="Enable Ego Velocity Profile (from data.csv)", variable=self.use_velocity_profile)
-        self.velocity_profile_checkbox.grid(row=len(params)+1, column=0, columnspan=2, sticky="w")
+        self.velocity_profile_checkbox = tk.Checkbutton(self.panel, text="Enable Ego Velocity Profile", variable=self.use_velocity_profile)
+        self.velocity_profile_checkbox.grid(row=len(params)+3, column=1, columnspan=2, sticky="w")
 
         # Create a City instance for ACC 
         self.city_acc = City()
         self.city_bcc = City()
+        self.city_accbcc = City()
 
         # Visualization for ACC (top)
         self.painter_acc = TransportationPainter(self.scrollable_frame, self.city_acc.roads, self.city_acc.cars, width=1500, height=300, bg='white')
@@ -118,6 +139,14 @@ class ControlWindow:
         tk.Label(self.scrollable_frame, text="BCC").pack()
         self.energy_label_bcc = tk.Label(self.scrollable_frame, text="Total Energy : 0 KwH", font=("Arial", 10, "bold"))
         self.energy_label_bcc.pack()
+
+        # Visualization for ACC and BCC velocity profiles
+        self.painter_accbcc = TransportationPainter(self.scrollable_frame, self.city_accbcc.roads, self.city_accbcc.cars, width=1500, height=300, bg='white')
+        self.painter_accbcc.pack()
+        tk.Label(self.scrollable_frame, text="ACC and BCC Combined").pack()
+        self.energy_label_accbcc = tk.Label(self.scrollable_frame, text="Total Energy : 0 KwH", font=("Arial", 10, "bold"))
+        self.energy_label_accbcc.pack()
+
 
         self.fig_acc = Figure(figsize=(7, 2.5), dpi=100)
         self.ax_acc = self.fig_acc.add_subplot(111)
@@ -137,25 +166,43 @@ class ControlWindow:
         self.canvas_bcc = FigureCanvasTkAgg(self.fig_bcc, self.scrollable_frame)
         self.canvas_bcc.get_tk_widget().pack()
 
+        self.fig_accbcc = Figure(figsize=(7, 2.5), dpi=100)
+        self.ax_accbcc = self.fig_accbcc.add_subplot(111)
+        self.ax_accbcc.set_title("ACC+BCC Velocity Profiles")
+        self.ax_accbcc.set_xlabel("Time (s)")
+        self.ax_accbcc.set_ylabel("Velocity")
+
+        self.canvas_accbcc = FigureCanvasTkAgg(self.fig_accbcc, self.scrollable_frame)
+        self.canvas_accbcc.get_tk_widget().pack()
+        
         # Timer for simulation updates
         self.timer = None
 
         # Flags to control leader stop for ACC and BCC
-        self.leader_stop_acc = False
-        self.leader_stop_bcc = False
+        self.leader_stop = False
+        self.follower_stop = False
+
 
         self.dt = default_values["dt"] 
 
     
     def load_velocity_profile(self, filename="data.csv"):
         self.ego_velocity_profile = []
-        with open(filename, 'r') as f:
+        self.ego_velocity_profile_1 = []
+        with open("data1.csv", 'r') as f:
             reader = csv.DictReader(f)
             for row in reader:
                 time = float(row['time'])
                 velocity = float(row['velocity'])
                 self.ego_velocity_profile.append((time, velocity))
-        print("Velocity profile loaded from", filename)
+
+        with open("data2.csv", 'r') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                time = float(row['time'])
+                velocity = float(row['velocity'])
+                self.ego_velocity_profile_1.append((time, velocity))
+        print("Velocity profile loaded from", "data1.csv and data2.csv")
 
 
     def run_simulation(self):
@@ -173,29 +220,41 @@ class ControlWindow:
 
         self.city_acc = City()
         self.city_bcc = City()
+        self.city_accbcc = City()
 
         # Initialize cities with parameters for ACC and BCC models, including dt
         self.city_acc.init(*args[:-1], dt=self.dt, model='ACC')
         self.city_bcc.init(*args[:-1], dt=self.dt, model='BCC')
+        self.city_accbcc.init(*args[:-1], dt=self.dt, model='ACC+BCC')
 
         # Update painters with new city elements
         self.painter_acc.set_elements(self.city_acc.roads, self.city_acc.cars)
         self.painter_bcc.set_elements(self.city_bcc.roads, self.city_bcc.cars)
-
-        # Reset leader stop flags
-        self.leader_stop_acc = False
-        self.leader_stop_bcc = False
+        self.painter_accbcc.set_elements(self.city_accbcc.roads, self.city_accbcc.cars)
 
         # Load velocity profile from CSV file if enabled
         if self.use_velocity_profile.get():
             self.load_velocity_profile()
-            self.city_acc.ego_velocity_profile = self.ego_velocity_profile
-            self.city_bcc.ego_velocity_profile = self.ego_velocity_profile
-        else:
-            self.city_acc.ego_velocity_profile = []
-            self.city_bcc.ego_velocity_profile = []
+            self.city_acc.lead_velocity_profile = self.ego_velocity_profile
+            # self.city_acc.ego_velocity_profile = self.ego_velocity_profile
+            self.city_acc.follower_velocity_profile = self.ego_velocity_profile_1
 
-        # Start simulation timer
+            self.city_bcc.lead_velocity_profile = self.ego_velocity_profile
+            # self.city_bcc.ego_velocity_profile = self.ego_velocity_profile
+            self.city_bcc.follower_velocity_profile = self.ego_velocity_profile_1
+
+            self.city_accbcc.lead_velocity_profile = self.ego_velocity_profile
+            # self.city_accbcc.ego_velocity_profile = self.ego_velocity_profile
+            self.city_accbcc.follower_velocity_profile = self.ego_velocity_profile_1
+
+        else:
+            self.city_acc.lead_velocity_profile = []
+            self.city_acc.follower_velocity_profile = []
+            self.city_bcc.lead_velocity_profile = []
+            self.city_bcc.follower_velocity_profile = []
+            self.city_accbcc.lead_velocity_profile = []
+            self.city_accbcc.follower_velocity_profile = []
+
         self.start_timer()
 
     def start_timer(self):
@@ -207,7 +266,7 @@ class ControlWindow:
     def plot_velocities(self):
         dt = self.dt  # Use the same constant dt
 
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8), sharex=True)
+        fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
 
         # ACC Plot
         for idx, car in enumerate(self.city_acc.cars):
@@ -228,8 +287,100 @@ class ControlWindow:
         ax2.legend(fontsize="small", loc="upper right")
         ax2.grid(True)
 
+        # ACC + BCC Combined Plot
+        for idx, car in enumerate(self.city_accbcc.cars):
+            time_axis = [dt * i for i in range(len(car.vel_history))]
+            ax3.plot(time_axis, car.vel_history, label=f"Car {idx+1} (ACC+BCC)")
+        ax3.set_title("ACC + BCC Combined Velocity Profiles")
+        ax3.set_xlabel("Time (s)")
+        ax3.set_ylabel("Velocity (units/s)")
+        ax3.legend(fontsize="small", loc="upper right")
+        ax3.grid(True)
+
         plt.tight_layout()
         plt.show()
+
+
+    def plot_gap_switching(self):
+        dt = self.dt
+        plt.figure(figsize=(12, 6))
+
+        # Loop over all cars in the ACC+BCC simulation
+        for idx, car in enumerate(self.city_accbcc.cars):
+            if idx in [0, 2]:
+                continue
+            if not hasattr(car, 'gap_history'):
+                continue  
+
+            time = [i * dt for i in range(len(car.gap_history))]
+
+            plt.plot(time, car.gap_history, label=f'Car {idx} G')
+            plt.plot(time, car.x_history, label=f'Car {idx} X')
+
+            for step, mode in getattr(car, 'switch_events', []):
+                t = step * dt
+                color = 'red' if mode == 'ACC' else 'blue'
+                plt.axvline(t, color=color, linestyle='--', alpha=0.5)
+                y = max(car.gap_history) if car.gap_history else 0
+                plt.text(t, y, f'{mode}', rotation=90, va='bottom')
+
+        plt.xlabel('Time (s)')
+        plt.ylabel('Gap (m)')
+        plt.title('Per-Car Gap vs X with Mode Switch Points')
+        plt.legend()
+        plt.grid(True)
+
+        plt.show()
+
+
+    def plot_velocities_and_gap_switching(self):
+        dt = self.dt
+
+        fig, ax1 = plt.subplots(figsize=(14, 6))
+
+        # Plot velocities (left y-axis)
+        for idx, car in enumerate(self.city_accbcc.cars):
+            time_axis = [dt * i for i in range(len(car.vel_history))]
+            ax1.plot(time_axis, car.vel_history, '--', label=f'Car {idx} Velocity', alpha=0.4)
+
+        ax1.set_xlabel("Time (s)")
+        ax1.set_ylabel("Velocity (units/s)", color='tab:blue')
+        ax1.tick_params(axis='y', labelcolor='tab:blue')
+        ax1.grid(True)
+
+        # Create a second y-axis for gap switching
+        ax2 = ax1.twinx()
+
+        for idx, car in enumerate(self.city_accbcc.cars):
+            if idx in [0, 2]:
+                continue
+            if not hasattr(car, 'gap_history'):
+                continue
+
+            time_gap = [dt * i for i in range(len(car.gap_history))]
+
+            ax2.plot(time_gap, car.gap_history, label=f'Car {idx} G', alpha=0.7)
+            ax2.plot(time_gap, car.x_history, label=f'Car {idx} X', alpha=0.7)
+
+            for step, mode in getattr(car, 'switch_events', []):
+                t = step * dt
+                color = 'red' if mode == 'ACC' else 'blue'
+                ax2.axvline(t, color=color, linestyle='--', alpha=0.4)
+                y = max(car.gap_history) if car.gap_history else 0
+                ax2.text(t, y, f'{mode}', rotation=90, va='bottom')
+
+        ax2.set_ylabel("Gap / X (m)", color='tab:green')
+        ax2.tick_params(axis='y', labelcolor='tab:green')
+
+        # Combine legends from both axes
+        lines_1, labels_1 = ax1.get_legend_handles_labels()
+        lines_2, labels_2 = ax2.get_legend_handles_labels()
+        ax1.legend(lines_1 + lines_2, labels_1 + labels_2, loc='upper right', fontsize='small')
+
+        plt.title("Velocity Profiles + Gap Switching (Same Graph)")
+        plt.tight_layout()
+        plt.show()
+
 
     def update_live_graphs(self):
         dt = self.dt  # Use the same constant dt
@@ -268,20 +419,27 @@ class ControlWindow:
         dt = self.dt 
 
         # Set leader stop flags for both cities
-        self.city_acc.set_leader_stop(self.leader_stop_acc)
-        self.city_bcc.set_leader_stop(self.leader_stop_bcc)
+        self.city_acc.set_leader_stop(self.leader_stop)
+        self.city_acc.set_follower_stop(self.follower_stop)
+        self.city_bcc.set_leader_stop(self.leader_stop)
+        self.city_bcc.set_follower_stop(self.follower_stop)
+        self.city_accbcc.set_leader_stop(self.leader_stop)
+        self.city_accbcc.set_follower_stop(self.follower_stop)
 
         # Run simulation step for both cities with fixed dt
         self.city_acc.run(dt)
         self.city_bcc.run(dt)
+        self.city_accbcc.run(dt)
 
         # Update painters with new city elements
         self.painter_acc.set_elements(self.city_acc.roads, self.city_acc.cars)
         self.painter_bcc.set_elements(self.city_bcc.roads, self.city_bcc.cars)
+        self.painter_accbcc.set_elements(self.city_accbcc.roads, self.city_accbcc.cars)
 
         # Redraw the visualizations
         self.painter_acc.repaint()
         self.painter_bcc.repaint()
+        self.painter_accbcc.repaint()
 
         # Update live graphs with velocity profiles
         # Comment the below line to disable live graph and improve simulation performance
@@ -290,22 +448,30 @@ class ControlWindow:
         # Calculate total energy
         total_energy_acc = sum(car.energy_used for car in self.city_acc.cars)
         total_energy_bcc = sum(car.energy_used for car in self.city_bcc.cars)
+        total_energy_accbcc = sum(car.energy_used for car in self.city_accbcc.cars)
         
         # Update label texts
         self.energy_label_acc.config(text=f"Total Energy : {total_energy_acc:.4f} KwH")
         self.energy_label_bcc.config(text=f"Total Energy : {total_energy_bcc:.4f} KwH")
-
+        self.energy_label_accbcc.config(text=f"Total Energy : {total_energy_accbcc:.4f} KwH")
 
         # Schedule next update for 0.1 seconds later (100 ms)
         self.timer = self.master.after(int(dt*1000), self.update_simulation)
 
-    def stop_simulation(self):
-        self.leader_stop_acc = True
-        self.leader_stop_bcc = True
 
-    def resume_simulation(self):
-        self.leader_stop_acc = False
-        self.leader_stop_bcc = False
+    def stop_lead(self):
+        print("Stopping lead for ACC, BCC, and ACC+BCC")
+        self.leader_stop = True
+    
+    def resume_lead(self):
+        self.leader_stop = False
+
+    def stop_follower(self):
+        self.follower_stop = True
+
+    def resume_follower(self):
+        self.follower_stop = False
+
 
 if __name__ == "__main__":
     # Create main window and start the application

@@ -11,6 +11,7 @@ class Car:
         self.velocity = velocity
         self.acceleration = acceleration
         self.current_road = current_road
+        self.mode = 'VEL' 
         self.energy_used = 0.0
         self.mass = 1800
         self.frontal_area = 2.2
@@ -19,6 +20,9 @@ class Car:
         self.Cd = 0.29 # Drag coefficient
         self.pos_history = []
         self.vel_history = []
+        self.gap_history = []
+        self.x_history = []
+        self.switch_events = []
 
     def get_length(self):
         return self.length
