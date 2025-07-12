@@ -214,7 +214,7 @@ class City:
 
                 front_gap = abs((car_pos - front_car_pos - front_car.length) % road_length)
                 back_gap = abs((back_car_pos - car_pos - car.length) % road_length)
-                Gavailable = front_gap 
+                Gavailable = min(front_gap, back_gap)
 
                 car.gap_history.append(Gavailable)
                 car.x_history.append(X)
@@ -233,10 +233,11 @@ class City:
 
 
                 if car.mode == 'ACC':
-                    gap = (car_pos - front_car_pos - car.length ) % road_length
-                    rel_v = front_car_vel - car_vel
                     desired_gap = self.min_dis + car_vel * self.reaction_time
-                    acc = 0.5 * self.kd * (gap - desired_gap) + 0.5 * self.kv * rel_v
+                    front_gap = (car_pos - front_car_pos - car.length ) % road_length
+                    gap_factor = 0.5 * self.kd * (front_gap - desired_gap)
+                    velocity_factor = 0.5 * self.kv * (front_car_vel - car_vel)
+                    acc = gap_factor + velocity_factor
                 else:
                     desired_gap = self.min_dis + car_vel * self.reaction_time
                     front_gap = abs((car_pos - front_car_pos - front_car.length) % road_length)
