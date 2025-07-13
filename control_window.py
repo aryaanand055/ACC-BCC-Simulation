@@ -111,10 +111,10 @@ class ControlWindow:
         # Btn for graphs
         self.plot_button = tk.Button(self.panel, text="Plot Velocity Profiles", command=self.plot_velocities)
         self.plot_button.grid(row=len(params)+2, column=1)
-        
-        # Btn for gap and x
-        self.plot_button = tk.Button(self.panel, text="Plot Gap Switching", command=self.plot_velocities_and_gap_switching)
-        self.plot_button.grid(row=len(params)+2, column=2)
+
+        # Btn for acceleration
+        self.plot_acc_button = tk.Button(self.panel, text="Plot Vel and Acc Profiles", command=self.plot_vel_acc_profiles)
+        self.plot_acc_button.grid(row=len(params)+2, column=0)
         
         # Checkbox to enable velocity profile
         self.use_velocity_profile = tk.BooleanVar(value=False)
@@ -300,84 +300,108 @@ class ControlWindow:
         plt.tight_layout()
         plt.show()
 
+    def plot_acceleration(self):
+        dt = self.dt  # Use the same constant dt
 
-    def plot_gap_switching(self):
-        dt = self.dt
-        plt.figure(figsize=(12, 6))
+        fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
 
-        # Loop over all cars in the ACC+BCC simulation
-        for idx, car in enumerate(self.city_accbcc.cars):
-            if idx in [0, 2]:
-                continue
-            if not hasattr(car, 'gap_history'):
-                continue  
-
-            time = [i * dt for i in range(len(car.gap_history))]
-
-            plt.plot(time, car.gap_history, label=f'Car {idx} G')
-            plt.plot(time, car.x_history, label=f'Car {idx} X')
-
-            for step, mode in getattr(car, 'switch_events', []):
-                t = step * dt
-                color = 'red' if mode == 'ACC' else 'blue'
-                plt.axvline(t, color=color, linestyle='--', alpha=0.5)
-                y = max(car.gap_history) if car.gap_history else 0
-                plt.text(t, y, f'{mode}', rotation=90, va='bottom')
-
-        plt.xlabel('Time (s)')
-        plt.ylabel('Gap (m)')
-        plt.title('Per-Car Gap vs X with Mode Switch Points')
-        plt.legend()
-        plt.grid(True)
-
-        plt.show()
-
-
-    def plot_velocities_and_gap_switching(self):
-        dt = self.dt
-
-        fig, ax1 = plt.subplots(figsize=(14, 6))
-
-        # Plot velocities (left y-axis)
-        for idx, car in enumerate(self.city_accbcc.cars):
-            time_axis = [dt * i for i in range(len(car.vel_history))]
-            ax1.plot(time_axis, car.vel_history, '--', label=f'Car {idx} Velocity', alpha=0.4)
-
-        ax1.set_xlabel("Time (s)")
-        ax1.set_ylabel("Velocity (units/s)", color='tab:blue')
-        ax1.tick_params(axis='y', labelcolor='tab:blue')
+        # ACC Plot
+        for idx, car in enumerate(self.city_acc.cars):
+            time_axis = [dt * i for i in range(len(car.acc_history))]
+            ax1.plot(time_axis, car.acc_history, label=f"Car {idx+1}")
+        ax1.set_title("ACC Acceleration Profiles")
+        ax1.set_ylabel("Acceleration (units/s²)")
+        ax1.legend(fontsize="small", loc="upper right")
         ax1.grid(True)
 
-        # Create a second y-axis for gap switching
-        ax2 = ax1.twinx()
+        # BCC Plot
+        for idx, car in enumerate(self.city_bcc.cars):
+            time_axis = [dt * i for i in range(len(car.acc_history))]
+            ax2.plot(time_axis, car.acc_history, label=f"Car {idx+1}")
+        ax2.set_title("BCC Acceleration Profiles")
+        ax2.set_xlabel("Time (s)")
+        ax2.set_ylabel("Acceleration (units/s²)")
+        ax2.legend(fontsize="small", loc="upper right")
+        ax2.grid(True)
 
+        # ACC + BCC Combined Plot
         for idx, car in enumerate(self.city_accbcc.cars):
-            if idx in [0, 2]:
-                continue
-            if not hasattr(car, 'gap_history'):
-                continue
+            time_axis = [dt * i for i in range(len(car.acc_history))]
+            ax3.plot(time_axis, car.acc_history, label=f"Car {idx+1} (ACC+BCC)")
+        ax3.set_title("ACC + BCC Combined Acceleration Profiles")
+        ax3.set_xlabel("Time (s)")
+        ax3.set_ylabel("Acceleration (units/s²)")
+        ax3.legend(fontsize="small", loc="upper right")
+        ax3.grid(True)
 
-            time_gap = [dt * i for i in range(len(car.gap_history))]
+        plt.tight_layout()
+        plt.show()
+        self.plot_velocities()
 
-            ax2.plot(time_gap, car.gap_history, label=f'Car {idx} G', alpha=0.7)
-            ax2.plot(time_gap, car.x_history, label=f'Car {idx} X', alpha=0.7)
+    def plot_vel_acc_profiles(self):
+        dt = self.dt  # Consistent time step
 
-            for step, mode in getattr(car, 'switch_events', []):
-                t = step * dt
-                color = 'red' if mode == 'ACC' else 'blue'
-                ax2.axvline(t, color=color, linestyle='--', alpha=0.4)
-                y = max(car.gap_history) if car.gap_history else 0
-                ax2.text(t, y, f'{mode}', rotation=90, va='bottom')
+        fig, axes = plt.subplots(3, 2, figsize=(14, 10), sharex='col')
 
-        ax2.set_ylabel("Gap / X (m)", color='tab:green')
-        ax2.tick_params(axis='y', labelcolor='tab:green')
+        # === ACC ===
+        # Velocity (left)
+        for idx, car in enumerate(self.city_acc.cars):
+            time_axis = [dt * i for i in range(len(car.vel_history))]
+            axes[0, 0].plot(time_axis, car.vel_history, label=f"Car {idx+1}")
+        axes[0, 0].set_title("ACC Velocity")
+        axes[0, 0].set_ylabel("Velocity")
+        axes[0, 0].legend(fontsize="x-small")
+        axes[0, 0].grid(True)
 
-        # Combine legends from both axes
-        lines_1, labels_1 = ax1.get_legend_handles_labels()
-        lines_2, labels_2 = ax2.get_legend_handles_labels()
-        ax1.legend(lines_1 + lines_2, labels_1 + labels_2, loc='upper right', fontsize='small')
+        # Acceleration (right)
+        for idx, car in enumerate(self.city_acc.cars):
+            time_axis = [dt * i for i in range(len(car.acc_history))]
+            axes[0, 1].plot(time_axis, car.acc_history, label=f"Car {idx+1}")
+        axes[0, 1].set_title("ACC Acceleration")
+        axes[0, 1].set_ylabel("Acceleration")
+        axes[0, 1].legend(fontsize="x-small")
+        axes[0, 1].grid(True)
 
-        plt.title("Velocity Profiles + Gap Switching (Same Graph)")
+        # === BCC ===
+        # Velocity (left)
+        for idx, car in enumerate(self.city_bcc.cars):
+            time_axis = [dt * i for i in range(len(car.vel_history))]
+            axes[1, 0].plot(time_axis, car.vel_history, label=f"Car {idx+1}")
+        axes[1, 0].set_title("BCC Velocity")
+        axes[1, 0].set_ylabel("Velocity")
+        axes[1, 0].legend(fontsize="x-small")
+        axes[1, 0].grid(True)
+
+        # Acceleration (right)
+        for idx, car in enumerate(self.city_bcc.cars):
+            time_axis = [dt * i for i in range(len(car.acc_history))]
+            axes[1, 1].plot(time_axis, car.acc_history, label=f"Car {idx+1}")
+        axes[1, 1].set_title("BCC Acceleration")
+        axes[1, 1].set_ylabel("Acceleration")
+        axes[1, 1].legend(fontsize="x-small")
+        axes[1, 1].grid(True)
+
+        # === ACC+BCC ===
+        # Velocity (left)
+        for idx, car in enumerate(self.city_accbcc.cars):
+            time_axis = [dt * i for i in range(len(car.vel_history))]
+            axes[2, 0].plot(time_axis, car.vel_history, label=f"Car {idx+1}")
+        axes[2, 0].set_title("ACC+BCC Velocity")
+        axes[2, 0].set_xlabel("Time (s)")
+        axes[2, 0].set_ylabel("Velocity")
+        axes[2, 0].legend(fontsize="x-small")
+        axes[2, 0].grid(True)
+
+        # Acceleration (right)
+        for idx, car in enumerate(self.city_accbcc.cars):
+            time_axis = [dt * i for i in range(len(car.acc_history))]
+            axes[2, 1].plot(time_axis, car.acc_history, label=f"Car {idx+1}")
+        axes[2, 1].set_title("ACC+BCC Acceleration")
+        axes[2, 1].set_xlabel("Time (s)")
+        axes[2, 1].set_ylabel("Acceleration")
+        axes[2, 1].legend(fontsize="x-small")
+        axes[2, 1].grid(True)
+
         plt.tight_layout()
         plt.show()
 

@@ -191,7 +191,7 @@ class City:
                 car.acceleration = acc
 
             elif self.model == 'ACC+BCC':
-                
+                self.mode = "INTEGRATED"
                 ve = car.velocity
                 vl = front_car.velocity
                 vf = back_car.velocity
@@ -214,44 +214,77 @@ class City:
 
                 front_gap = abs((car_pos - front_car_pos - front_car.length) % road_length)
                 back_gap = abs((back_car_pos - car_pos - car.length) % road_length)
-                Gavailable = min(front_gap, back_gap)
-
-                car.gap_history.append(Gavailable)
-                car.x_history.append(X)
 
 
-                print(f"X:{X:.2f}, Front gap: {front_gap:.2f}, Back gap: {back_gap:.2f}")
-                if (back_gap >= X and front_gap >= X) and car.mode != 'ACC':
-                    car.mode = 'ACC'
-                    print("Switching to ACC Model")
-                    car.switch_events.append((self.step_count, 'ACC'))
-                elif (back_gap < X ) and car.mode != 'BCC':
-                    car.mode = 'BCC'
-                    print("Switching to BCC Model")
-                    car.switch_events.append((self.step_count, 'BCC'))
+                car.integration_factor = self.calculate_integration_factor(front_gap, back_gap, X, car, front_car,back_car)
+                iF = car.integration_factor
+                # print(f"IF: {iF:.2f}")
+                desired_gap = self.min_dis + car_vel * self.reaction_time
 
+                front_gap = abs((car_pos - front_car_pos - front_car.length) % road_length)
+                back_gap = abs((back_car_pos - car_pos - car.length) % road_length)
 
-
-                if car.mode == 'ACC':
-                    desired_gap = self.min_dis + car_vel * self.reaction_time
-                    front_gap = (car_pos - front_car_pos - car.length ) % road_length
-                    gap_factor = 0.5 * self.kd * (front_gap - desired_gap)
-                    velocity_factor = 0.5 * self.kv * (front_car_vel - car_vel)
-                    acc = gap_factor + velocity_factor
-                else:
-                    desired_gap = self.min_dis + car_vel * self.reaction_time
-                    front_gap = abs((car_pos - front_car_pos - front_car.length) % road_length)
-                    back_gap = abs((back_car_pos - car_pos - car.length) % road_length)
-                    gap_factor = 0.5 * self.kd * (front_gap - desired_gap) + 0.5 * self.kd * (desired_gap - back_gap)
-                    velocity_factor = 0.5 * self.kv * (front_car_vel - car_vel) + 0.5 * self.kv * (back_car_vel - car_vel)
-                    acc = velocity_factor + gap_factor
-
+                gap_factor = 0.5 * self.kd * (front_gap - desired_gap) + iF * 0.5 * self.kd * (desired_gap - back_gap)
+                velocity_factor =  0.5 * self.kv * (front_car_vel - car_vel) + iF * 0.5 * self.kv * (back_car_vel - car_vel)
+                
+                acc = velocity_factor + gap_factor
                 acc = max(self.min_a, min(self.max_a, acc))
                 car.acceleration = acc
                    
 
+    def calculate_integration_factor(self, front_gap, back_gap, X, car, front_car, rear_car):
+        """
+        Advanced integration factor:
+          - More factors: gaps, relative speeds, rear car behavior
+          - Smooth hysteresis
+        """
+        # 1) Gap ratios
+        back_ratio = (back_gap - X) / X
+        front_ratio = (front_gap - X) / X
 
-       
+        # 2) Rear deceleration factor
+        # If rear car is braking hard → push towards BCC
+        rear_brake_ratio = 0.0
+        if rear_car.acceleration < 0:
+            # Normalize braking: say -2 m/s2 is strong
+            rear_brake_ratio = min(1, rear_car.acceleration / 2.0)
+
+        # 3) Relative velocity factor
+        # If closing on front car fast → push towards ACC
+        rel_vel_front = car.velocity - front_car.velocity 
+        closing_ratio = max(0, min(1, rel_vel_front / 10.0))  
+        
+        # 4) Weighted sum
+        w_back = 0.3
+        w_front = 0.3
+        w_rear_brake = 0.3
+        w_closing = 0.1
+        raw_iF = (
+            - w_back * back_ratio
+            - w_front * front_ratio
+            - w_rear_brake * rear_brake_ratio
+            - w_closing * closing_ratio
+        )  
+
+        # 5) Clamp to [0, 1]
+        raw_iF = max(0, min(1, raw_iF))
+
+        # 5) Smooth with hysteresis
+        old_iF = getattr(car, 'integration_factor', 0)
+        alpha = self.dt / (0.5 + self.dt)
+        smoothed_iF = (1 - alpha) * old_iF + alpha * raw_iF
+        car.integration_factor = smoothed_iF
+        print(f"back_ratio: {back_ratio:.2f}, front_ratio: {front_ratio:.2f}, rear_brake_ratio: {rear_brake_ratio:.2f}, closing_ratio: {closing_ratio:.2f}, IF: {car.integration_factor:.2f}")
+
+        # 6) Mode switch for visualization
+        if smoothed_iF < 0.2:
+            car.mode = 'ACC'
+        elif smoothed_iF > 0.8:
+            car.mode = 'BCC'
+        else:
+            car.mode = 'INTEGRATED'
+        return smoothed_iF
+
     def move_forward(self, dt=None):
         if dt is None:
             dt = self.dt

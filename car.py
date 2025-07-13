@@ -18,8 +18,10 @@ class Car:
         self.CoR = 0.2 # Coefficient of Restitution
         self.Cr = 0.015  # Rolling resistance coefficient
         self.Cd = 0.29 # Drag coefficient
+        self.integration_factor = 1
         self.pos_history = []
         self.vel_history = []
+        self.acc_history = []
         self.gap_history = []
         self.x_history = []
         self.switch_events = []
@@ -62,6 +64,8 @@ class Car:
             self.pos -= road_length
         self.pos_history.append(self.pos)
         self.vel_history.append(self.velocity)
+        self.acc_history.append(self.acceleration)
+
 
         # Energy calculation
         gravity = 9.8
