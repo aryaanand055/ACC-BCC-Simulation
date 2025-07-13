@@ -4,6 +4,8 @@ City .py: Contains the City class for managing the traffic simulation.
 
 from car import Car
 from road import Road
+import numpy as np
+import math as math
 
 class City:
     def __init__(self):
@@ -244,24 +246,22 @@ class City:
           - More factors: gaps, relative speeds, rear car behavior
           - Smooth hysteresis
         """
+
         total_w = 0
         raw_iF = 0
 
         # 1) Gap ratios
-        back_ratio = (back_gap - X) / X
-        back_ratio_w = 7
+        # Normalise all the factors to [-1 , 1]
+        back_ratio = (X - min(X, back_gap)) / X
+        back_ratio_w = 15
         total_w += back_ratio_w
-        raw_iF -= back_ratio * back_ratio_w
+        raw_iF += back_ratio * back_ratio_w
 
-        front_ratio = (front_gap - X) / X
-        front_ratio_w_positive = 4
-        front_ratio_w_negative = 2
-        if front_ratio > 0:
-            raw_iF -= front_ratio * front_ratio_w_positive
-            total_w += front_ratio_w_positive
-        else:
-            raw_iF -= front_ratio * front_ratio_w_negative
-            total_w += front_ratio_w_negative
+        front_ratio = (X - min(X, front_gap)) / X
+        front_ratio_w = 4
+
+        raw_iF -= front_ratio * front_ratio_w
+        total_w += front_ratio_w
 
 
        
@@ -280,36 +280,50 @@ class City:
         else:
             car.rear_brake_active = False
         
-        
+
+        # If acc>2(Comfort limit) then shift to acc else prefer bcc
+        def piecewise_flat_exp(x, T=2, k=3):
+            if x >= -T:
+                # Add in some dynamic input here. like relative braking or relative distance
+                return 1.0
+            else:
+                return math.exp(k * (x + T))
+            
+        # Use 2 as the comfort accleration
         if car.rear_brake_active:
-            rear_brake_ratio = rear_car.acceleration / 2.0
-            rear_brake_ratio_w = 3
+            rear_brake_ratio = piecewise_flat_exp(car.acceleration)
+            rear_brake_ratio_w = 4
             total_w += rear_brake_ratio_w
-            raw_iF += rear_brake_ratio * rear_brake_ratio_w
+            raw_iF -= rear_brake_ratio * rear_brake_ratio_w
         else:
             rear_brake_ratio = 0.0
 
 
         # 3) Relative velocity factor
         # If closing on front car fast → push towards ACC
-        rel_vel_front = car.velocity - front_car.velocity
-        closing_ratio = max(0, min(1, rel_vel_front / 10.0))
-        closing_ratio_w = 1
-        total_w += closing_ratio_w
-        raw_iF -= closing_ratio * closing_ratio_w
+        # rel_vel_front = car.velocity - front_car.velocity
+        # # Clamp between [ -1 , 1 ]
+        # closing_ratio = 2 * max(0, min(1, rel_vel_front / 10.0)) -1
+        # closing_ratio_w = 1
+        # total_w += closing_ratio_w
+        # raw_iF -= closing_ratio * closing_ratio_w
 
         # 4) Weighted sum
-        raw_iF /= total_w
+        normalized_iF = raw_iF / total_w
+        # if normalized_iF <= -0.8:
+            # normalized_iF = -1.0
 
         # 5) Clamp to [0, 1]
-        raw_iF = max(0, min(1, raw_iF))
+        # Convert range [-1 , 1] to [ 0,1 ]
+        normalized_iF = min(1, max(0, normalized_iF))
+
 
         # 5) Smooth with hysteresis
         old_iF = getattr(car, 'integration_factor', 0)
         alpha = self.dt / (0.5 + self.dt)
-        smoothed_iF = (1 - alpha) * old_iF + alpha * raw_iF
+        smoothed_iF = (1 - alpha) * old_iF + alpha * normalized_iF
         car.integration_factor = smoothed_iF
-        print(f"Time: {(self.dt * self.step_count):.2f},b_r: {back_ratio:.2f}, f_r: {front_ratio:.2f}, r_b_r: {rear_brake_ratio:.2f}, c_r: {closing_ratio:.2f}, T_Weight: {total_w} ,IF: {car.integration_factor:.2f}")
+        print(f"Time: {(self.dt * self.step_count):.2f},b_r: {back_ratio:.2f}, f_r: {front_ratio:.2f}, r_b_r: {rear_brake_ratio:.2f}, T_Weight: {total_w} ,IF: {car.integration_factor:.2f}")
 
         # 6) Mode switch for visualization
         if smoothed_iF < 0.2:
