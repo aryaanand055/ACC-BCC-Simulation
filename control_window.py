@@ -46,9 +46,9 @@ class ControlWindow:
         # Default values for simulation parameters
         default_values = {
             "car_number": 3,
-            "kd": 2.3,
-            "kv": 1.5,
-            "kc": 1.0,
+            "kd": 1.5,
+            "kv": 1.0,
+            "kc": 0.5,
             "v_des": 25.0,
             "max_v": 50.0,
             "min_v": 0.0,
