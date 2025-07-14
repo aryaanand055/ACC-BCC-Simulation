@@ -84,7 +84,11 @@ class City:
 
         for idx, car in enumerate(self.cars):
             self.v_des = 0 if (getattr(self, 'follower_stop', False) and idx == 2) else self.initial_v_des
-          
+            # if getattr(self, 'leader_stop', False) and idx == 0:
+            #     acc = self.kc * (0 - car.velocity)
+            #     acc = max(self.min_a, min(self.max_a, acc))
+            #     car.acceleration = acc
+            #     continue
 
             if idx == 0:
                 if getattr(self, 'leader_stop', False):
@@ -165,7 +169,6 @@ class City:
                 return gap if gap > 0 else float('inf')
             
             back_car = min(cars_same_road, key=gap_from, default=None) if cars_same_road else None
-
             if self.model == 'ACC' or (self.model == 'BCC' and idx == len(self.cars) - 1):
                 car.mode = 'ACC'
                 # Active Cruise Control: only consider the car in front
@@ -175,7 +178,11 @@ class City:
                 gap = (car_pos - front_car_pos - car.length ) % road_length
                 rel_v = front_car_vel - car_vel
                 desired_gap = self.min_dis + car_vel * self.reaction_time
-                acc = self.kd * (gap - desired_gap) +  self.kv * rel_v
+                max_tracking_gap = max(4*desired_gap, 50)
+                if gap > max_tracking_gap:
+                    acc = self.kc * (self.v_des - car_vel)
+                else:    
+                    acc = self.kd * (gap - desired_gap) +  self.kv * rel_v
                 acc = max(self.min_a, min(self.max_a, acc))
                 car.acceleration = acc
             elif self.model == 'BCC':        
@@ -190,7 +197,12 @@ class City:
                 back_gap = abs((back_car_pos - car_pos - car.length) % road_length)
                 gap_factor = self.kd * (front_gap - desired_gap) + self.kd * (desired_gap - back_gap)
                 velocity_factor =  self.kv * (front_car_vel - car_vel) + self.kv * (back_car_vel - car_vel)
-                acc = velocity_factor + gap_factor
+                
+                max_tracking_gap = max(4*desired_gap, 50)
+                if front_gap > max_tracking_gap:
+                    acc = self.kc * (self.v_des - car_vel)
+                else:    
+                    acc = velocity_factor + gap_factor
                 acc = max(self.min_a, min(self.max_a, acc))
                 car.acceleration = acc
 
@@ -229,7 +241,12 @@ class City:
                 gap_factor = self.kd * (front_gap - desired_gap) + iF  * self.kd * (desired_gap - back_gap)
                 velocity_factor =  self.kv * (front_car_vel - car_vel) + iF *  self.kv * (back_car_vel - car_vel)
                 
-                acc = velocity_factor + gap_factor
+                 
+                max_tracking_gap = max(4*desired_gap, 50)
+                if front_gap > max_tracking_gap:
+                    acc = self.kc * (self.v_des - car_vel)
+                else:    
+                    acc = velocity_factor + gap_factor
                 acc = max(self.min_a, min(self.max_a, acc))
 
 
@@ -251,14 +268,14 @@ class City:
         raw_iF = 0
 
         # 1) Gap ratios
-        # Normalise all the factors to [-1 , 1]
+        # Normalise all the factors to [0 , 1]
         back_ratio = (X - min(X, back_gap)) / X
-        back_ratio_w = 15
+        back_ratio_w = 6
         total_w += back_ratio_w
         raw_iF += back_ratio * back_ratio_w
 
         front_ratio = (X - min(X, front_gap)) / X
-        front_ratio_w = 4
+        front_ratio_w = 6
 
         raw_iF -= front_ratio * front_ratio_w
         total_w += front_ratio_w
@@ -292,35 +309,42 @@ class City:
         # Use 2 as the comfort accleration
         if car.rear_brake_active:
             rear_brake_ratio = piecewise_flat_exp(car.acceleration)
-            rear_brake_ratio_w = 4
+            rear_brake_ratio_w = 2
             total_w += rear_brake_ratio_w
             raw_iF -= rear_brake_ratio * rear_brake_ratio_w
         else:
             rear_brake_ratio = 0.0
 
 
-        # 3) Relative velocity factor
-        # If closing on front car fast → push towards ACC
-        # rel_vel_front = car.velocity - front_car.velocity
-        # # Clamp between [ -1 , 1 ]
-        # closing_ratio = 2 * max(0, min(1, rel_vel_front / 10.0)) -1
-        # closing_ratio_w = 1
-        # total_w += closing_ratio_w
-        # raw_iF -= closing_ratio * closing_ratio_w
+        back_gap_threshold = X * 0.5  # e.g., half of the total safe envelope
+
+        if back_gap < back_gap_threshold:
+            rel_vel_rear = rear_car.velocity - car.velocity
+            closing_in_ratio = np.clip(rel_vel_rear / 5.0, 0, 1)
+            closing_in_ratio_w = 2
+            total_w += closing_in_ratio_w
+            raw_iF += closing_in_ratio * closing_in_ratio_w
+        else:
+            closing_in_ratio = 0.0
+
+
+        # 4) How closely it is packed
+        local_density = (1.0 - front_gap/X) * (1.0 - back_gap/X)
+        density_w = 3
+        total_w += density_w
+        raw_iF += local_density * density_w
+
 
         # 4) Weighted sum
         normalized_iF = raw_iF / total_w
-        # if normalized_iF <= -0.8:
-            # normalized_iF = -1.0
 
         # 5) Clamp to [0, 1]
-        # Convert range [-1 , 1] to [ 0,1 ]
         normalized_iF = min(1, max(0, normalized_iF))
 
 
         # 5) Smooth with hysteresis
         old_iF = getattr(car, 'integration_factor', 0)
-        alpha = self.dt / (0.5 + self.dt)
+        alpha = self.dt / (0.2 + self.dt)
         smoothed_iF = (1 - alpha) * old_iF + alpha * normalized_iF
         car.integration_factor = smoothed_iF
         print(f"Time: {(self.dt * self.step_count):.2f},b_r: {back_ratio:.2f}, f_r: {front_ratio:.2f}, r_b_r: {rear_brake_ratio:.2f}, T_Weight: {total_w} ,IF: {car.integration_factor:.2f}")
