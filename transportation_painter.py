@@ -45,7 +45,7 @@ class TransportationPainter(tk.Canvas):
                 y = 200
                 self.create_rectangle(x-car.length/2, y-10, x+car.length/2, y+10, fill=car.color, outline='black')
                 self.create_text(x, y-25, text=f"{car.velocity:.1f}")
-                mode_label = 'A' if getattr(car, 'mode', 'ACC') == 'ACC' else 'B' if getattr(car, 'mode', 'BCC') == 'BCC' else f"{car.integration_factor:.2f}".split(".")[1] if getattr(car, 'mode', 'INTEGRATED') == 'INTEGRATED' else 'V'
+                mode_label = 'A' if getattr(car, 'mode', 'ACC') == 'ACC' else 'B' if getattr(car, 'mode', 'BCC') == 'BCC' else f"{car.integration_factor:.2f}".split(".")[1] if getattr(car, 'mode', 'INTEGRATED') == 'INTEGRATED' else "S" if getattr(car, 'mode', "SWITCH") == "SWITCH" else 'V'
                 self.create_text(x, y + 20, text=mode_label, font=("Arial", 8))
 
    

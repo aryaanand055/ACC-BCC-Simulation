@@ -17,7 +17,7 @@ class City:
         self.min_gap = 5.0 
         self.dt = 0.1 
 
-    def init(self, car_number, kd, kv, kc, v_des, max_v, min_v, min_dis, reaction_time, max_a, min_a, min_gap=5.0, dt=0.1, model='ACC'):
+    def init(self, car_number, kd, kv, kc, v_des, max_v, min_v, min_dis, reaction_time, headway_time, max_a, min_a, min_gap=5.0, dt=0.1, model='ACC'):
         # Reset simulation state
         self.cars.clear()
         self.roads.clear()
@@ -32,7 +32,7 @@ class City:
         # Place cars at intervals along the road
         for i in range(int(car_number)):
             # Initial velocity, position, and sizeof each car
-            velocity = 0
+            velocity = v_des
             car_length = 4
             headway = min_dis + velocity * reaction_time
             pos = 1000 - (car_number - 1 -i) * (car_length + headway) 
@@ -57,6 +57,7 @@ class City:
         self.max_v = max_v
         self.min_v = min_v
         self.reaction_time = reaction_time
+        self.headway_time = headway_time
         self.max_a = max_a
         self.min_a = min_a
         self.min_dis = min_dis
@@ -83,17 +84,19 @@ class City:
         car_states = [(c.pos, c.velocity) for c in self.cars]
 
         for idx, car in enumerate(self.cars):
-            self.v_des = 0 if (getattr(self, 'follower_stop', False) and idx == 2) else self.initial_v_des
-            # if getattr(self, 'leader_stop', False) and idx == 0:
-            #     acc = self.kc * (0 - car.velocity)
-            #     acc = max(self.min_a, min(self.max_a, acc))
-            #     car.acceleration = acc
-            #     continue
+            # self.v_des = 0 if (getattr(self, 'follower_stop', False) and idx == 2) else self.initial_v_des
 
             if idx == 0:
                 if getattr(self, 'leader_stop', False):
                     acc = self.kc * (0 - car.velocity)
                     acc = max(self.min_a, min(self.max_a, acc))
+                    last_acc = car.acceleration
+                    jerk  = (acc - last_acc) / dt
+                    max_jerk = 5
+                    if jerk > max_jerk:
+                        acc = last_acc + max_jerk * dt
+                    elif jerk < -max_jerk:
+                        acc = last_acc - max_jerk * dt
                     car.acceleration = acc
                     continue
 
@@ -105,33 +108,64 @@ class City:
                         if t1 <= time <= t2:
                             alpha = (time - t1) / (t2 - t1)
                             target_velocity = v1 + alpha * (v2 - v1)
-                            current_velocity = car.velocity
-                            acc = (target_velocity - current_velocity) / dt
-                            car.acceleration = max(self.min_a, min(self.max_a, acc))
+                            acc = self.kc * (target_velocity - car.velocity)
+                            # acc = (target_velocity - car.velocity) / dt
+                            acc = max(self.min_a, min(self.max_a, acc))
+                            last_acc = car.acceleration
+                            jerk  = (acc - last_acc) / dt
+                            max_jerk = 5
+                            if jerk > max_jerk:
+                                acc = last_acc + max_jerk * dt
+                            elif jerk < -max_jerk:
+                                acc = last_acc - max_jerk * dt
+                            car.acceleration = acc
                             break
                     else:
                         # If time exceeds profile, maintain last velocity
                         t1, v1 = self.lead_velocity_profile[-1]
                         target_velocity = v1
-                        current_velocity = car.velocity
-                        acc = (target_velocity - current_velocity) / dt
+                        acc = self.kc * (target_velocity - car.velocity)
+                        # acc = (target_velocity - car.velocity) / dt
                         acc = max(self.min_a, min(self.max_a, acc))
+                        last_acc = car.acceleration
+                        jerk  = (acc - last_acc) / dt
+                        max_jerk = 5
+                        if jerk > max_jerk:
+                            acc = last_acc + max_jerk * dt
+                        elif jerk < -max_jerk:
+                            acc = last_acc - max_jerk * dt
                         car.acceleration = acc
                 else:
                     # Try to reach v_des if no velocity profile
                     acc = self.kc * (self.v_des - car.velocity)
                     acc = max(self.min_a, min(self.max_a, acc))
+                    last_acc = car.acceleration
+                    jerk  = (acc - last_acc) / dt
+                    max_jerk = 5
+                    if jerk > max_jerk:
+                        acc = last_acc + max_jerk * dt
+                    elif jerk < -max_jerk:
+                        acc = last_acc - max_jerk * dt
                     car.acceleration = acc
+                    continue
                 continue
             if idx == 2:
                 if getattr(self, 'follower_stop', False):
                     acc = self.kc * (0 - car.velocity)
                     acc = max(self.min_a, min(self.max_a, acc))
+                    last_acc = car.acceleration
+                    jerk  = (acc - last_acc) / dt
+                    max_jerk = 5
+                    if jerk > max_jerk:
+                        acc = last_acc + max_jerk * dt
+                    elif jerk < -max_jerk:
+                        acc = last_acc - max_jerk * dt
+                    # car.acceleration = acc
                     car.acceleration = acc
                     car.mode = "VEL"
                     continue
                 
-                if hasattr(self, 'lead_velocity_profile') and self.lead_velocity_profile:
+                if hasattr(self, 'follower_velocity_profile') and self.follower_velocity_profile:
                     time = round(self.step_count * dt, 3)
                     for i in range(len(self.follower_velocity_profile)-1):
                         t1,v1 = self.follower_velocity_profile[i]
@@ -139,17 +173,35 @@ class City:
                         if t1 <= time <= t2:
                             alpha = (time - t1) / (t2 - t1)
                             target_velocity = v1 + alpha * (v2 - v1)
-                            current_velocity = car.velocity
-                            acc = (target_velocity - current_velocity) / dt
-                            car.acceleration = max(self.min_a, min(self.max_a, acc))
+                            # current_velocity = car.velocity
+                            acc = self.kc * (target_velocity - car.velocity)
+                            # acc = (target_velocity - current_velocity) / dt
+                            acc = max(self.min_a, min(self.max_a, acc))
+                            last_acc = car.acceleration
+                            jerk  = (acc - last_acc) / dt
+                            max_jerk = 5
+                            if jerk > max_jerk:
+                                acc = last_acc + max_jerk * dt
+                            elif jerk < -max_jerk:
+                                acc = last_acc - max_jerk * dt
+                            # car.acceleration = acc
+                            car.acceleration = acc
                             break
                     else:
                         # If time exceeds profile, maintain last velocity
                         t1, v1 = self.follower_velocity_profile[-1]
                         target_velocity = v1
-                        current_velocity = car.velocity
-                        acc = (target_velocity - current_velocity) / dt
+                        # current_velocity = car.velocity
+                        acc = self.kc * (target_velocity - car.velocity)
+                        # acc = (target_velocity - current_velocity) / dt
                         acc = max(self.min_a, min(self.max_a, acc))
+                        last_acc = car.acceleration
+                        jerk  = (acc - last_acc) / dt
+                        max_jerk = 5
+                        if jerk > max_jerk:
+                            acc = last_acc + max_jerk * dt
+                        elif jerk < -max_jerk:
+                            acc = last_acc - max_jerk * dt
                         car.acceleration = acc
                     continue
 
@@ -169,22 +221,17 @@ class City:
                 return gap if gap > 0 else float('inf')
             
             back_car = min(cars_same_road, key=gap_from, default=None) if cars_same_road else None
+
             if self.model == 'ACC' or ((self.model == 'BCC' or self.model=="ACC+BCC") and idx == len(self.cars) - 1):
                 car.mode = 'ACC'
-                # Active Cruise Control: only consider the car in front
                 car_pos, car_vel = car_states[idx]
                 front_idx = self.cars.index(front_car)
                 front_car_pos, front_car_vel = car_states[front_idx]
                 gap = (car_pos - front_car_pos - car.length ) % road_length
                 rel_v = front_car_vel - car_vel
                 desired_gap = self.min_dis + car_vel * self.reaction_time
-                max_tracking_gap = max(4*desired_gap, 50)
-                if gap > max_tracking_gap:
-                    acc = self.kc * (self.v_des - car_vel)
-                else:    
-                    acc = self.kd * (gap - desired_gap) +  self.kv * rel_v
+                acc = self.kd * (gap - desired_gap) +  self.kv * rel_v
                 acc = max(self.min_a, min(self.max_a, acc))
-                car.acceleration = acc
             elif self.model == 'BCC':        
                 car.mode = 'BCC'        
                 car_pos, car_vel = car_states[idx]
@@ -197,14 +244,10 @@ class City:
                 back_gap = abs((back_car_pos - car_pos - car.length) % road_length)
                 gap_factor = self.kd * (front_gap - desired_gap) + self.kd * (desired_gap - back_gap)
                 velocity_factor =  self.kv * (front_car_vel - car_vel) + self.kv * (back_car_vel - car_vel)
-                
-                max_tracking_gap = max(4*desired_gap, 50)
-                if front_gap > max_tracking_gap:
-                    acc = self.kc * (self.v_des - car_vel)
-                else:    
-                    acc = velocity_factor + gap_factor
+                d_vel_factor = 0
+                # d_vel_factor = self.kc *(self.v_des - car_vel)
+                acc = velocity_factor + gap_factor + d_vel_factor
                 acc = max(self.min_a, min(self.max_a, acc))
-                car.acceleration = acc
 
             elif self.model == 'ACC+BCC':
                 self.mode = "INTEGRATED"
@@ -217,7 +260,7 @@ class City:
                 Le = car.length
                 Lb = self.min_gap
 
-                Gfront_min = ve * Tr + ((ve - vl) ** 2) / (2 * ae) + Lb
+                Gfront_min = ve * Tr + ((vl - ve) ** 2) / (2 * ae) + Lb
                 Grear_min = vf * Tr + ((vf - ve) ** 2) / (2 * af) + Lb
 
                 X = Gfront_min + Le + Grear_min
@@ -240,23 +283,21 @@ class City:
 
                 gap_factor = self.kd * (front_gap - desired_gap) + iF  * self.kd * (desired_gap - back_gap)
                 velocity_factor =  self.kv * (front_car_vel - car_vel) + iF *  self.kv * (back_car_vel - car_vel)
-                
-                 
-                # max_tracking_gap = max(4*desired_gap, 50)
-                # if front_gap > max_tracking_gap:
-                #     acc = self.kc * (self.v_des - car_vel)
-                # else:    
-                #     acc = velocity_factor + gap_factor
-                acc = velocity_factor + gap_factor
+                d_vel_factor = 0
+                # d_vel_factor = self.kc *(self.v_des - car_vel)
+                acc = velocity_factor + gap_factor + d_vel_factor
                 acc = max(self.min_a, min(self.max_a, acc))
 
-
-                # Add some hysterises to accleration
-                # last_acc = car.acceleration
-                # alpha = dt/(0.2+dt)
-                # smoothed_acc = (1-alpha) * last_acc + alpha * acc
-                car.acceleration = acc
-                   
+            # Add some hysterises to accleration
+            last_acc = car.acceleration
+            jerk  = (acc - last_acc) / dt
+            max_jerk = 5
+            if jerk > max_jerk:
+                acc = last_acc + max_jerk * dt
+            elif jerk < -max_jerk:
+                acc = last_acc - max_jerk * dt
+            car.acceleration = acc
+            
 
     def calculate_integration_factor(self, front_gap, back_gap, X, car, front_car, rear_car, idx):
         """
@@ -264,61 +305,68 @@ class City:
           - More factors: gaps, relative speeds, rear car behavior
           - Smooth hysteresis
         """
-
         
+
+        # if back_gap > X :
+        #     car.mode = 'ACC'
+        #     return 0
+        # else:
+        #     car.mode = 'BCC'
+        #     return 1
+        
+
 
         total_w = 0
         raw_iF = 0
         back_ratio_w = 6
         front_ratio_w = 6
-        rear_brake_ratio_w = 2
-        closing_ratio_back_w = 1
-        closing_ratio_front_w = 2
-        rel_vel_validation_threshold = 2* X  
         front_ratio_validation_threshold = X
+        rear_brake_ratio_w = 2
+        closing_ratio_back_w = 2
+        closing_ratio_front_w = 3
+        rel_vel_validation_threshold = 2 * X  
 
         # 1) Gap ratios
         # Normalise all the factors to [0 , 1]
 
         # 1.1) Back Ratio
         back_ratio = (X - min(X, back_gap)) / X
-        total_w += back_ratio_w
+        total_w +=back_ratio_w
         raw_iF += back_ratio * back_ratio_w
 
+
         # 1.2) Front Ratio
-        if back_gap < front_ratio_validation_threshold:
-            front_ratio = (X - min(X, front_gap)) / X
-            raw_iF += front_ratio * front_ratio_w
-            total_w += front_ratio_w
-        else:
-            front_ratio = 0
+        # if back_gap < front_ratio_validation_threshold:
+        g_threshold = max(10, car.velocity * car.headway_time)
+        g_threshold = 10
+        front_ratio = math.exp(-0.01* math.pow((front_gap - g_threshold), 2))
+        raw_iF += front_ratio * front_ratio_w
+        total_w += front_ratio_w
+        # else:
+            # front_ratio = 0
 
 
        
         # 2) Rear braking
         # If acc>2(Comfort limit) then shift to acc else prefer bcc
         # The function returns 1 for greater than -2 or else it exponentially drops to 0
-        def piecewise_flat_exp(x, D_ratio=1.0, V_ratio=1.0, T=2, k=3):
-            if x >= -T:
-                return 1.0 * D_ratio * V_ratio
+        def smooth_rear_brake_factor(k,a):
+            if a > -2:
+                return 1.0
             else:
-                return math.exp(k * (x + T)) * D_ratio * V_ratio
-            
+                return math.exp(k * (a + 2))
+
         if back_gap < X and rear_car.acceleration <0:
-            # How close is the rear car
-            D_ratio = np.clip((X - back_gap) / X, 0, 1)
-            # How fast is it closing in
-            V_ratio = np.clip((rear_car.velocity - car.velocity) / 5.0, 0, 1)
-            rear_brake_ratio = piecewise_flat_exp(rear_car.acceleration, D_ratio, V_ratio)
-            total_w += rear_brake_ratio_w
-            raw_iF -= rear_brake_ratio * rear_brake_ratio_w
+            rear_brake_ratio = smooth_rear_brake_factor(1.23, rear_car.acceleration)
+            total_w +=rear_brake_ratio_w
+            raw_iF += rear_brake_ratio * rear_brake_ratio_w
         else:
             rear_brake_ratio = 0.0
 
 
         # 3) Relative rear velocity
-        if back_gap < rel_vel_validation_threshold:
-            rel_vel_rear = rear_car.velocity - car.velocity
+        rel_vel_rear = rear_car.velocity - car.velocity
+        if back_gap < rel_vel_validation_threshold and rel_vel_rear > 0:
             closing_in_ratio = np.clip(rel_vel_rear / 5.0, 0, 1)
             total_w += closing_ratio_back_w
             raw_iF += closing_in_ratio * closing_ratio_back_w
@@ -327,11 +375,11 @@ class City:
 
         
         # 4) Relative front velocity
-        if front_gap < rel_vel_validation_threshold:
-            rel_vel_front = car.velocity - front_car.velocity
+        rel_vel_front = car.velocity - front_car.velocity
+        if front_gap < rel_vel_validation_threshold and rel_vel_front > 0:
             closing_ratio_front = np.clip(rel_vel_front / 5.0, 0, 1)
-            raw_iF -= closing_ratio_front * closing_ratio_front_w
-            total_w += closing_ratio_front_w
+            raw_iF += (closing_ratio_front * closing_ratio_front_w)
+            total_w +=closing_ratio_front_w
         else:
             closing_ratio_front = 0.0
 
@@ -344,15 +392,15 @@ class City:
 
         # 7) Smooth with hysteresis
         old_iF = getattr(car, 'integration_factor', 0)
-        alpha = self.dt / (0.5 + self.dt)
+        alpha = 0.009
         smoothed_iF = (1 - alpha) * old_iF + alpha * normalized_iF
         car.integration_factor = smoothed_iF
-
-        if idx == 1:
-            print(f"Time: {(self.dt * self.step_count):.2f},b_r: {back_ratio:.2f}, f_r: {front_ratio:.2f}, r_b_r: {rear_brake_ratio:.2f}, c_f_r: {closing_ratio_front:.2f}, c_i_r: {closing_in_ratio:.2f},T_Weight: {total_w} ,IF: {car.integration_factor:.2f}")
+        # if idx == 1:
+        #     print(f"Time: {(self.dt * self.step_count):.2f},b_r: {back_ratio:.3f}, f_r: {front_ratio:.3f}, r_b_r: {rear_brake_ratio:.3f}, c_f_r: {closing_ratio_front:.3f}, c_i_r: {closing_in_ratio:.3f},T_Weight: {total_w} ,IF: {car.integration_factor:.2f}")
 
         # 8) Mode switch for visualization
-        if smoothed_iF < 0.05:
+        if smoothed_iF < 0.1:
+            # smoothed_iF = 0
             car.mode = 'ACC'
         elif smoothed_iF > 0.8:
             car.mode = 'BCC'

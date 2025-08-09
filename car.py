@@ -11,6 +11,7 @@ class Car:
         self.velocity = velocity
         self.acceleration = acceleration
         self.current_road = current_road
+        self.headway_time = 2
         self.mode = 'VEL' 
         self.energy_used = 0.0
         self.mass = 1800
@@ -19,9 +20,9 @@ class Car:
         self.Cr = 0.015  # Rolling resistance coefficient
         self.Cd = 0.29 # Drag coefficient
         self.integration_factor = 1
-        self.pos_history = []
-        self.vel_history = []
-        self.acc_history = []
+        self.pos_history = [self.pos]
+        self.vel_history = [self.velocity]
+        self.acc_history = [self.acceleration]
         self.gap_history = []
         self.x_history = []
         self.switch_events = []
@@ -51,7 +52,7 @@ class Car:
         # Invert position update for inverted mapping (move right as forward)
         # S = ut + 0.5at^2
         # v = u + at
-        displacement = self.velocity * dt - 0.5 * self.acceleration * dt**2
+        displacement = self.velocity * dt + 0.5 * self.acceleration * dt**2
         self.pos -= displacement
 
         self.velocity += self.acceleration * dt
