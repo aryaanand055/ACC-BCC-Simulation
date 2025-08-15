@@ -56,7 +56,7 @@ A crash is indicated by the car turning **orange**, and the simulation handles t
     ```sh
     python run_headless.py
     ```
-    This will run a 60-second simulation with default parameters and generate plots and statistics upon completion.
+    This will run a 60-second simulation with default parameters and generate plots and statistics upon completion. The headless python file can be customised to allow for different forms of testing as well.
 
 -----
 
