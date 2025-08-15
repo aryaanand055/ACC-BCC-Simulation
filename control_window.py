@@ -45,9 +45,9 @@ class ControlWindow:
 
         # Default values for simulation parameters
         default_values = {
-            "car_number": 3,
-            "kd": 0.8,
-            "kv": 0.4,
+            "car_number": 15,
+            "kd": 0.9,
+            "kv": 0.5,
             "kc": 0.4,
             "v_des": 15.0,
             "max_v": 30.0,
@@ -150,7 +150,7 @@ class ControlWindow:
     def load_velocity_profile(self, filename="data.csv"):
         self.ego_velocity_profile = []
         self.ego_velocity_profile_1 = []
-        with open("data1.csv", 'r') as f:
+        with open("data.csv", 'r') as f:
             reader = csv.DictReader(f)
             for row in reader:
                 time = float(row['time'])

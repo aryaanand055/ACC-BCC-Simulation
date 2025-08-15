@@ -16,6 +16,9 @@ class City:
         self.mode = 'BCC'
         self.min_gap = 5.0 
         self.dt = 0.1 
+        self.overall_min_gap = float('inf')
+        self.overall_max_gap = 0
+        self.all_gaps = []
 
     def init(self, car_number, kd, kv, kc, v_des, max_v, min_v, min_dis, reaction_time, headway_time, max_a, min_a, min_gap=5.0, dt=0.1, model='ACC'):
         # Reset simulation state
@@ -24,6 +27,9 @@ class City:
         self.step_count = 0
         self.model = model
         self.dt = dt
+        self.overall_min_gap = float('inf')
+        self.overall_max_gap = 0
+        self.all_gaps = []
 
         # Create a single straight road for simplicity
         road = Road(1000, 0, 0, 1, 0)
@@ -32,7 +38,7 @@ class City:
         # Place cars at intervals along the road
         for i in range(int(car_number)):
             # Initial velocity, position, and sizeof each car
-            velocity = v_des
+            velocity = 0
             car_length = 4
             headway = min_dis + velocity * reaction_time
             pos = 1000 - (car_number - 1 -i) * (car_length + headway) 
@@ -70,6 +76,35 @@ class City:
         self.driver_decision()
         self.move_forward(dt)
         self.step_count += 1
+        # Calculate and store inter-vehicular distances for final analysis
+        gaps = []
+        road_length = self.roads[0].length if self.roads else 1000
+        for idx, car in enumerate(self.cars):
+            if idx ==0:
+                continue
+            cars_same_road = [c for c in self.cars if c.current_road == car.current_road and c != car]
+
+            def gap_to(other):
+                gap = (car.pos - other.pos ) % road_length
+                return gap if gap > 0 else float('inf')
+            
+            front_car = min(cars_same_road, key=gap_to, default=None) if cars_same_road else None
+            gap = ((car.pos - front_car.pos - car.length) % road_length)
+            if idx == 0: 
+                print(gap)
+            if gap > 0:
+                gaps.append(gap)
+    
+        if gaps:
+            current_min_gap = min(gaps)
+            current_max_gap = max(gaps)
+            if current_min_gap < self.overall_min_gap:
+                self.overall_min_gap = current_min_gap
+            if current_max_gap > self.overall_max_gap:
+                self.overall_max_gap = current_max_gap
+
+            
+            self.all_gaps.extend(gaps)
 
     def set_leader_stop(self, leader_stop):
         self.leader_stop = leader_stop
@@ -109,7 +144,7 @@ class City:
                             alpha = (time - t1) / (t2 - t1)
                             target_velocity = v1 + alpha * (v2 - v1)
                             acc = self.kc * (target_velocity - car.velocity)
-                            # acc = (target_velocity - car.velocity) / dt
+                            acc = (target_velocity - car.velocity) / dt
                             acc = max(self.min_a, min(self.max_a, acc))
                             last_acc = car.acceleration
                             jerk  = (acc - last_acc) / dt
@@ -149,61 +184,59 @@ class City:
                     car.acceleration = acc
                     continue
                 continue
-            if idx == 2:
-                if getattr(self, 'follower_stop', False):
-                    acc = self.kc * (0 - car.velocity)
-                    acc = max(self.min_a, min(self.max_a, acc))
-                    last_acc = car.acceleration
-                    jerk  = (acc - last_acc) / dt
-                    max_jerk = 5
-                    if jerk > max_jerk:
-                        acc = last_acc + max_jerk * dt
-                    elif jerk < -max_jerk:
-                        acc = last_acc - max_jerk * dt
-                    # car.acceleration = acc
-                    car.acceleration = acc
-                    car.mode = "VEL"
-                    continue
+            # if idx == 2:
+            #     if getattr(self, 'follower_stop', False):
+            #         acc = self.kc * (0 - car.velocity)
+            #         acc = max(self.min_a, min(self.max_a, acc))
+            #         last_acc = car.acceleration
+            #         jerk  = (acc - last_acc) / dt
+            #         max_jerk = 5
+            #         if jerk > max_jerk:
+            #             acc = last_acc + max_jerk * dt
+            #         elif jerk < -max_jerk:
+            #             acc = last_acc - max_jerk * dt
+            #         # car.acceleration = acc
+            #         car.acceleration = acc
+            #         car.mode = "VEL"
+            #         continue
                 
-                if hasattr(self, 'follower_velocity_profile') and self.follower_velocity_profile:
-                    time = round(self.step_count * dt, 3)
-                    for i in range(len(self.follower_velocity_profile)-1):
-                        t1,v1 = self.follower_velocity_profile[i]
-                        t2, v2 = self.follower_velocity_profile[i+1]
-                        if t1 <= time <= t2:
-                            alpha = (time - t1) / (t2 - t1)
-                            target_velocity = v1 + alpha * (v2 - v1)
-                            # current_velocity = car.velocity
-                            acc = self.kc * (target_velocity - car.velocity)
-                            # acc = (target_velocity - current_velocity) / dt
-                            acc = max(self.min_a, min(self.max_a, acc))
-                            last_acc = car.acceleration
-                            jerk  = (acc - last_acc) / dt
-                            max_jerk = 5
-                            if jerk > max_jerk:
-                                acc = last_acc + max_jerk * dt
-                            elif jerk < -max_jerk:
-                                acc = last_acc - max_jerk * dt
-                            # car.acceleration = acc
-                            car.acceleration = acc
-                            break
-                    else:
-                        # If time exceeds profile, maintain last velocity
-                        t1, v1 = self.follower_velocity_profile[-1]
-                        target_velocity = v1
-                        # current_velocity = car.velocity
-                        acc = self.kc * (target_velocity - car.velocity)
-                        # acc = (target_velocity - current_velocity) / dt
-                        acc = max(self.min_a, min(self.max_a, acc))
-                        last_acc = car.acceleration
-                        jerk  = (acc - last_acc) / dt
-                        max_jerk = 5
-                        if jerk > max_jerk:
-                            acc = last_acc + max_jerk * dt
-                        elif jerk < -max_jerk:
-                            acc = last_acc - max_jerk * dt
-                        car.acceleration = acc
-                    continue
+            #     if hasattr(self, 'follower_velocity_profile') and self.follower_velocity_profile:
+            #         time = round(self.step_count * dt, 3)
+            #         for i in range(len(self.follower_velocity_profile)-1):
+            #             t1,v1 = self.follower_velocity_profile[i]
+            #             t2, v2 = self.follower_velocity_profile[i+1]
+            #             if t1 <= time <= t2:
+            #                 alpha = (time - t1) / (t2 - t1)
+            #                 target_velocity = v1 + alpha * (v2 - v1)
+            #                 # current_velocity = car.velocity
+            #                 acc = self.kc * (target_velocity - car.velocity)
+            #                 # acc = (target_velocity - current_velocity) / dt
+            #                 acc = max(self.min_a, min(self.max_a, acc))
+            #                 last_acc = car.acceleration
+            #                 jerk  = (acc - last_acc) / dt
+            #                 max_jerk = 5
+            #                 if jerk > max_jerk:
+            #                     acc = last_acc + max_jerk * dt
+            #                 elif jerk < -max_jerk:
+            #                     acc = last_acc - max_jerk * dt
+            #                 car.acceleration = acc
+            #                 break
+            #         else:
+            #             # If time exceeds profile, maintain last velocity
+            #             t1, v1 = self.follower_velocity_profile[-1]
+            #             target_velocity = v1
+            #             acc = self.kc * (target_velocity - car.velocity)
+            #             # acc = (target_velocity - current_velocity) / dt
+            #             acc = max(self.min_a, min(self.max_a, acc))
+            #             last_acc = car.acceleration
+            #             jerk  = (acc - last_acc) / dt
+            #             max_jerk = 5
+            #             if jerk > max_jerk:
+            #                 acc = last_acc + max_jerk * dt
+            #             elif jerk < -max_jerk:
+            #                 acc = last_acc - max_jerk * dt
+            #             car.acceleration = acc
+            #         continue
 
     
             # Find the car ahead and behind on the same road (circular road)
@@ -228,6 +261,7 @@ class City:
                 front_idx = self.cars.index(front_car)
                 front_car_pos, front_car_vel = car_states[front_idx]
                 gap = (car_pos - front_car_pos - car.length ) % road_length
+                
                 rel_v = front_car_vel - car_vel
                 desired_gap = self.min_dis + car_vel * self.reaction_time
                 acc = self.kd * (gap - desired_gap) +  self.kv * rel_v
@@ -245,7 +279,6 @@ class City:
                 gap_factor = self.kd * (front_gap - desired_gap) + self.kd * (desired_gap - back_gap)
                 velocity_factor =  self.kv * (front_car_vel - car_vel) + self.kv * (back_car_vel - car_vel)
                 d_vel_factor = 0
-                # d_vel_factor = self.kc *(self.v_des - car_vel)
                 acc = velocity_factor + gap_factor + d_vel_factor
                 acc = max(self.min_a, min(self.max_a, acc))
 
